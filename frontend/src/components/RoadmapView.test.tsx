@@ -1,0 +1,126 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ApiError } from "@/lib/api";
+import { personalisePhrases, RoadmapView } from "@/components/RoadmapView";
+import type { Pathway, SavedPathway, Slot } from "@/lib/types";
+import type { RunSpec } from "@/lib/usePathwayRun";
+
+const { baseline, createPathway, courses, options, swap } = vi.hoisted(() => ({
+  baseline: vi.fn(), createPathway: vi.fn(), courses: vi.fn(), options: vi.fn(), swap: vi.fn(),
+}));
+vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api: { baseline, createPathway, courses, options, swap } }));
+
+const slot = (over: Partial<Slot> = {}): Slot => ({
+  slot_id: "a", codes: ["CSC 101"], title: "Introduction to Computing", units: 3, slot_kind: "fixed", swappable: false,
+  pool_section_id: null, counts_toward_major: true, status: "planned", ...over,
+});
+const open = slot({ slot_id: "b", codes: [], title: "SF State Studies or University Elective", slot_kind: "free_elective", swappable: true });
+const picked = slot({ slot_id: "b", codes: ["ART 101"], title: "Drawing", slot_kind: "free_elective", swappable: true, status: "replaced" });
+const path = (b: Slot): Pathway => ({
+  program_id: 1, program_title: "Bachelor of Science in Computer Science", program_level: "undergraduate", roadmap_id: 9,
+  roadmap_name: "Bachelor of Science in Computer Science Roadmap - QR 1/2", total_units_required: 120, major_units_required: 74, unplaced_passed: [],
+  terms: [{ position: 0, label: "First Semester", slots: [slot({ status: "passed" }), b] }],
+});
+const result = (over: Partial<SavedPathway> = {}): SavedPathway => ({
+  id: 5, interest: "drawing", pathway: path(picked), applied: [{ slot_id: "b", new_course_code: "ART 101", title: "Drawing", reason: "Drawing fundamentals match your interest." }],
+  dropped: [], warnings: [], intent: null, note: null, cached: false, ...over,
+});
+const spec = (over: Partial<RunSpec> = {}): RunSpec => ({ key: "k", programId: 1, roadmapId: 9, interest: "drawing", ...over });
+const noop = () => {};
+
+beforeEach(() => {
+  [baseline, createPathway, courses, options, swap].forEach((m) => m.mockReset());
+  baseline.mockResolvedValue({ pathway: path(open) });
+  courses.mockResolvedValue({ courses: {} });
+  options.mockResolvedValue({ slot_id: "b", query: "", candidates: [] });
+});
+
+test("streams the baseline in, then lets the AI picks land", async () => {
+  let finish: (v: SavedPathway) => void = () => {};
+  createPathway.mockReturnValue(new Promise<SavedPathway>((resolve) => (finish = resolve)));
+  const s = spec();
+  render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />);
+  expect(await screen.findByText("SF State Studies or University Elective")).toBeInTheDocument();
+  expect(screen.getByText(`${personalisePhrases("drawing")[0]}…`)).toBeInTheDocument(); // words, not a bar
+  finish(result());
+  expect(await screen.findByText("Drawing", {}, { timeout: 3000 })).toBeInTheDocument();
+  expect(screen.getByText("Picked for you")).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText(`${personalisePhrases("drawing")[0]}…`)).not.toBeInTheDocument());
+});
+
+test("keeps the baseline when personalising fails, and can try again", async () => {
+  createPathway.mockRejectedValueOnce(new ApiError(503, "pathway_unavailable", "Pathway planning is temporarily unavailable.")).mockResolvedValueOnce(result());
+  const s = spec();
+  render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(/temporarily unavailable/);
+  expect(screen.getByText("SF State Studies or University Elective")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByText("Drawing", {}, { timeout: 3000 })).toBeInTheDocument();
+  expect(baseline).toHaveBeenCalledTimes(2);
+});
+
+test("a roadmap that could not be built at all shows the reason", async () => {
+  baseline.mockRejectedValue(new ApiError(404, "not_found", "That program has no roadmap."));
+  const s = spec({ interest: null });
+  render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("That program has no roadmap.");
+});
+
+test("a saved roadmap is shown straight away, picks included, without calling the server", () => {
+  const s = spec({ saved: result() });
+  render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />);
+  expect(screen.getByText("Drawing")).toBeInTheDocument();
+  expect(screen.getByText("Picked for you")).toBeInTheDocument();
+  expect(baseline).not.toHaveBeenCalled();
+});
+
+test("a degraded answer is explained in a soft banner", () => {
+  const s = spec({ saved: result({ applied: [], pathway: path(open), note: "Personalising took too long; showing the standard roadmap." }) });
+  render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />);
+  expect(screen.getByText(/Personalising took too long/)).toBeInTheDocument();
+});
+
+test("refresh asks again, steering away from the current picks", async () => {
+  const onRerun = vi.fn();
+  const s = spec({ saved: result() });
+  render(<RoadmapView spec={s} onRerun={onRerun} onOpenHistory={noop} />);
+  await userEvent.click(screen.getByRole("button", { name: "Refresh picks" }));
+  expect(onRerun).toHaveBeenCalledWith({ programId: 1, roadmapId: 9, interest: "drawing", fresh: true, avoid: ["ART 101"] });
+});
+
+test("there is nothing to refresh without an interest", () => {
+  const s = spec({ interest: null, saved: result({ interest: null, applied: [], pathway: path(open) }) });
+  render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />);
+  expect(screen.queryByRole("button", { name: "Refresh picks" })).not.toBeInTheDocument();
+});
+
+test("a new interest re-runs the roadmap with the new text", async () => {
+  const onRerun = vi.fn();
+  const s = spec({ saved: result() });
+  render(<RoadmapView spec={s} onRerun={onRerun} onOpenHistory={noop} />);
+  await userEvent.click(screen.getByRole("button", { name: /New interest/ }));
+  await userEvent.clear(screen.getByLabelText("Your interest"));
+  await userEvent.type(screen.getByLabelText("Your interest"), "robotics{Enter}");
+  expect(onRerun).toHaveBeenCalledWith({ programId: 1, roadmapId: 9, interest: "robotics" });
+});
+
+test("past roadmaps opens the history", async () => {
+  const onOpenHistory = vi.fn();
+  render(<RoadmapView spec={spec({ saved: result() })} onRerun={noop} onOpenHistory={onOpenHistory} />);
+  await userEvent.click(screen.getByRole("button", { name: "Past roadmaps" }));
+  expect(onOpenHistory).toHaveBeenCalled();
+});
+
+test("swapping a course in the drawer updates the card at once", async () => {
+  options.mockResolvedValue({ slot_id: "b", query: "", candidates: [{ code: "CSC 667", title: "Internet Application Design", units: 3, similarity: 0.8, summary: "Web.", warnings: [] }] });
+  const swapped = result({
+    pathway: path(slot({ slot_id: "b", codes: ["CSC 667"], title: "Internet Application Design", slot_kind: "free_elective", swappable: true, status: "replaced" })),
+    applied: [{ slot_id: "b", new_course_code: "CSC 667", title: "Internet Application Design", reason: "Your choice" }],
+  });
+  swap.mockResolvedValue(swapped);
+  render(<RoadmapView spec={spec({ saved: result() })} onRerun={noop} onOpenHistory={noop} />);
+  await userEvent.click(screen.getByRole("button", { name: /Drawing/ }));
+  await userEvent.click(await screen.findByRole("button", { name: "Use CSC 667" }));
+  expect(await screen.findByText("Internet Application Design", { selector: "p" })).toBeInTheDocument();
+  expect(swap).toHaveBeenCalledWith(5, "b", "CSC 667");
+});
