@@ -25,7 +25,8 @@ def create_app(state: AppState | None = None, init_db_on_startup: bool = True) -
 
     app = FastAPI(title="GatorWay API", version="0.1.0", lifespan=lifespan)
     app.state.gw = state or build_state()
-    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
+    origins = [o.strip() for o in app.state.gw.settings.cors_origins.split(",") if o.strip()]
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"], allow_headers=["*"])
     install_error_handlers(app)
     app.include_router(auth.router)
     app.include_router(transcripts.router)

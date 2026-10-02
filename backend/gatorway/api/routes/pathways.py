@@ -77,7 +77,11 @@ async def create_pathway(body: PathwayRequest, user: User = Depends(current_user
 @router.get("")
 def list_pathways(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(SavedPathway).where(SavedPathway.user_id == user.id).order_by(SavedPathway.id.desc())).all()
-    return {"pathways": [{"id": r.id, "program_id": r.program_id, "interest": r.interest_raw, "created_at": r.created_at.isoformat()} for r in rows]}
+    return {"pathways": [{
+        "id": r.id, "program_id": r.program_id, "program_title": (r.result.get("pathway") or {}).get("program_title", ""),
+        "roadmap_name": (r.result.get("pathway") or {}).get("roadmap_name", ""), "interest": r.interest_raw,
+        "swaps": len(r.result.get("applied") or []), "created_at": r.created_at.isoformat(),
+    } for r in rows]}
 
 
 def _saved_payload(row: SavedPathway) -> dict:

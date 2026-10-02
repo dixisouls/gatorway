@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     extractor_url: str = "http://127.0.0.1:8080"
     extractor_api_key: str = ""
 
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"  # comma-separated browser origins allowed to call the API
     mcp_url: str = "http://127.0.0.1:8001/mcp"
     gemini_thinking_level: str = "off"  # off | LOW | MEDIUM | HIGH, or blank for the model default (gemini-3.8-flash rejects MINIMAL)
     edit_timeout_s: float = 120  # whole Gemini personalisation (several tool rounds, ~6 s each); then the baseline is shown

@@ -367,3 +367,16 @@ def test_pathway_responses_carry_the_raw_interest(world):
     assert made["interest"] == "I like drawing"
     assert client.get(f"/pathways/{made['id']}", headers=h).json()["interest"] == "I like drawing"
     assert client.post("/pathways", json={"program_id": pid}, headers=h).json()["interest"] is None
+
+
+def test_history_items_say_what_each_saved_roadmap_is(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    made = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()
+    plain = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    items = {i["id"]: i for i in client.get("/pathways", headers=h).json()["pathways"]}
+    assert items[made["id"]]["program_title"] == made["pathway"]["program_title"] != ""
+    assert items[made["id"]]["roadmap_name"] == made["pathway"]["roadmap_name"]
+    assert items[made["id"]]["swaps"] == 1 and items[plain["id"]]["swaps"] == 0 and items[plain["id"]]["interest"] is None
+    assert list(items) == [plain["id"], made["id"]]  # newest first
