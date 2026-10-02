@@ -197,3 +197,23 @@ def test_a_down_tool_server_is_a_503_not_a_500(world, make_state, redis_client):
     h, _ = headers(client)
     r = client.post("/pathways", json={"program_id": pid}, headers=h)
     assert r.status_code == 503 and r.json()["error"]["code"] == "pathway_unavailable"
+
+
+def test_baseline_preview_is_not_saved_and_never_calls_gemini(world):
+    build, pid, _ = world
+    client, llm = build()
+    h, _ = headers(client)
+    r = client.post("/pathways/baseline", json={"program_id": pid}, headers=h)
+    assert r.status_code == 200 and set(r.json()) == {"pathway"}
+    assert [t["label"] for t in r.json()["pathway"]["terms"]] == ["First Semester", "Second Semester", "Third Semester"]
+    assert llm.edit_calls == 0
+    assert client.get("/pathways", headers=h).json()["pathways"] == []
+
+
+def test_baseline_preview_needs_login_and_a_real_program(world):
+    build, pid, minor = world
+    client, _ = build()
+    assert client.post("/pathways/baseline", json={"program_id": pid}).status_code == 401
+    h, _ = headers(client)
+    assert client.post("/pathways/baseline", json={"program_id": 99999}, headers=h).status_code == 404
+    assert client.post("/pathways/baseline", json={"program_id": minor}, headers=h).status_code == 404  # no roadmap

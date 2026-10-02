@@ -14,13 +14,41 @@ from ..errors import ApiError
 from ..state import AppState
 
 router = APIRouter(prefix="/pathways", tags=["pathways"])
-_NOT_FOUND_HINTS = ("not found", "no roadmap", "does not belong")
+_NOT_FOUND_HINTS = ("not found", "no roadmap", "does not belong", "no slot")
+_SLOT_HINTS = ("not swappable",)
 
 
 class PathwayRequest(BaseModel):
     program_id: int
     roadmap_id: int | None = None
     interest: str | None = Field(default=None, max_length=500)
+
+
+def _service_error(e: ServiceError) -> ApiError:
+    message = str(e)
+    lowered = message.lower()
+    if any(hint in lowered for hint in _NOT_FOUND_HINTS):
+        return ApiError(404, "not_found", message)
+    if any(hint in lowered for hint in _SLOT_HINTS):
+        return ApiError(422, "invalid_slot", message)
+    return ApiError(503, "pathway_unavailable", "Pathway planning is temporarily unavailable.")
+
+
+class BaselineRequest(BaseModel):
+    program_id: int
+    roadmap_id: int | None = None
+
+
+@router.post("/baseline", dependencies=[Depends(user_rate_limit("baseline", 60, 3600))])
+async def preview_baseline(body: BaselineRequest, user: User = Depends(current_user), db: Session = Depends(get_db), state: AppState = Depends(get_state)):
+    if state.pathway_service is None:
+        raise ApiError(503, "pathway_unavailable", "Pathway planning is not configured.")
+    passed = user_passed_codes(db, user.id)
+    try:
+        pathway = await state.pathway_service.baseline(program_id=body.program_id, roadmap_id=body.roadmap_id, passed=passed)
+    except ServiceError as e:
+        raise _service_error(e)
+    return {"pathway": pathway.model_dump(mode="json")}
 
 
 @router.post("", dependencies=[Depends(user_rate_limit("pathways", 20, 3600))])
@@ -33,10 +61,7 @@ async def create_pathway(body: PathwayRequest, user: User = Depends(current_user
             program_id=body.program_id, roadmap_id=body.roadmap_id, passed=passed, interest=body.interest, data_version=data_version(db)
         )
     except ServiceError as e:
-        message = str(e)
-        if any(hint in message.lower() for hint in _NOT_FOUND_HINTS):
-            raise ApiError(404, "not_found", message)
-        raise ApiError(503, "pathway_unavailable", "Pathway planning is temporarily unavailable.")
+        raise _service_error(e)
     payload = result.model_dump(mode="json")
     saved = SavedPathway(user_id=user.id, program_id=body.program_id, roadmap_id=result.pathway.roadmap_id,
                          interest_raw=body.interest, intent=payload["intent"], result=payload)

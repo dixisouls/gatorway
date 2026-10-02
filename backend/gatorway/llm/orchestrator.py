@@ -72,6 +72,17 @@ class PathwayService:
             log.exception("pathway tools unavailable")
             raise ServiceError("pathway tools are unavailable") from e
 
+    async def baseline(self, *, program_id: int, roadmap_id: int | None, passed: list[str]) -> Pathway:
+        """The deterministic roadmap only: no Gemini, nothing cached or saved. Lets the UI draw while personalising runs."""
+        try:
+            async with self._mcp_factory() as mcp:
+                return await self._build_baseline(mcp, program_id, roadmap_id, passed)
+        except ServiceError:
+            raise
+        except Exception as e:
+            log.exception("pathway tools unavailable")
+            raise ServiceError("pathway tools are unavailable") from e
+
     async def _create(self, mcp: Any, program_id: int, roadmap_id: int | None, passed: list[str], interest: str | None, data_version: str) -> PathwayResult:
         baseline = await self._build_baseline(mcp, program_id, roadmap_id, passed)
         if not (interest or "").strip():
