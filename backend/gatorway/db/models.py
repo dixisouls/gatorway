@@ -102,7 +102,7 @@ class RequirementItem(Base):
     section_id: Mapped[int] = mapped_column(ForeignKey("requirement_sections.id", ondelete="CASCADE"), index=True)
     position: Mapped[int] = mapped_column(Integer)
     course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"))
-    raw_code: Mapped[str] = mapped_column(String(32))
+    raw_code: Mapped[str] = mapped_column(String(255))  # cross-listed entries ("CLAR 420/ANTH 424/...") are long
     or_with_previous: Mapped[bool] = mapped_column(Boolean, default=False)
 
     section: Mapped[RequirementSection] = relationship(back_populates="items")

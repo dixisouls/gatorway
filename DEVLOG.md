@@ -29,3 +29,12 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 ## Task 5 — Ingestion loader
 - Added `ingest/loader.py` (courses upsert, requirement sections/items, roadmaps → terms → slots with slot classification, default roadmap, data_version stamp) and a small hand-built fixture set (`tests/fixtures/mini_*.json`) that mirrors the scraper output.
 - TDD: tests failed (module missing), then 7/7 passed against Postgres — including re-running ingest twice (no duplicates, stable program ids, changed data applied) and a program with no elective list (elective slots stay fixed).
+
+## Task 6 — Embeddings and `python -m gatorway.ingest`
+- Added embedders (`HashingEmbedder` offline stand-in, `GeminiEmbedder`), `embed_courses` (skips unchanged text), and the ingest CLI.
+- TDD: 5 embedding tests failed then passed.
+- **Real data run found two bugs the small fixtures could not**, each fixed test-first:
+  1. cross-listed requirement codes (e.g. `CLAR 420/ANTH 424/ARTH 401/M S 420`) overflowed `raw_code varchar(32)` → widened to 255;
+  2. 16 roadmap rows had a course code but a null title → fall back to the codes.
+- Test fixtures now rebuild the test schema each session. I dropped and recreated the (empty, verified) dev schema once.
+- **Real ingest result (matches the spec's "done means"):** 4,995 courses, 378 programs, 1,828 requirement sections, 364 roadmaps, 12,757 slots (10,963 fixed / 1,664 free-elective / 130 major-elective), 4,986 courses embedded. Second run embedded 0 and changed nothing. 249 programs have no elective list (their major-elective slots stay fixed, as designed). Embeddings are the offline hashing stand-in; re-run with `--embeddings gemini` (needs `GEMINI_API_KEY`) for real semantic search.

@@ -94,3 +94,22 @@ def test_program_with_no_elective_list_makes_elective_slots_fixed(db, data):
     major = db.scalar(select(RoadmapSlot).where(RoadmapSlot.title.like("Major Elective%")))
     assert major.swappable is False and major.slot_kind == "fixed"
     assert report.programs_without_elective_pool >= 1
+
+
+def test_cross_listed_requirement_codes_longer_than_a_course_code_are_kept_as_unresolved(db, data):
+    courses, programs = data
+    long_code = "CLAR 420/ANTH 424/ARTH 401/M S 420"
+    programs[0]["requirements"]["sections"][2]["rows"].append(
+        {"type": "course", "codes": [long_code], "or_with_previous": False, "title": "Cross-listed", "units_raw": "3", "units_min": 3, "units_max": 3})
+    report = run(db, (courses, programs))
+    item = db.scalar(select(RequirementItem).where(RequirementItem.raw_code == long_code))
+    assert item is not None and item.course_id is None and long_code in report.unresolved_codes
+
+
+def test_a_roadmap_row_with_a_course_but_no_title_falls_back_to_its_codes(db, data):
+    courses, programs = data
+    item = programs[0]["roadmaps"][1]["content"]["grids"][0]["terms"][0]["items"][0]  # CSC 101
+    item["title"] = None
+    run(db, (courses, programs))
+    titles = db.scalars(select(RoadmapSlot.title).where(RoadmapSlot.codes == ["CSC 101"])).all()
+    assert sorted(titles) == ["CSC 101", "Introduction to Computing"]  # the untitled row (QR roadmap) and the ADT roadmap's row

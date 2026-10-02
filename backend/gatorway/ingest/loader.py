@@ -137,10 +137,11 @@ def ingest_program(db: Session, rec: dict, code_to_id: dict[str, int], report: I
                 for i, item in enumerate(term.get("items", [])):
                     codes = [_code(c) for c in item.get("codes", [])]
                     report.unresolved_codes.update(c for c in codes if c not in code_to_id)
-                    sc = classify_slot(codes, item["title"], item.get("tags") or [], pool_id is not None)
+                    title = item.get("title") or ", ".join(codes) or "Untitled"  # some scraped course rows have no title
+                    sc = classify_slot(codes, title, item.get("tags") or [], pool_id is not None)
                     t.slots.append(RoadmapSlot(
-                        position=i, codes=codes, title=item["title"], tags=item.get("tags") or [], footnotes=item.get("footnotes") or [],
-                        units=item.get("units_min") or 0, seats=parse_seats(item["title"]) if sc.swappable else 1,
+                        position=i, codes=codes, title=title, tags=item.get("tags") or [], footnotes=item.get("footnotes") or [],
+                        units=item.get("units_min") or 0, seats=parse_seats(title) if sc.swappable else 1,
                         slot_kind=sc.slot_kind, swappable=sc.swappable, counts_toward_major=sc.counts_toward_major,
                         pool_section_id=pool_id if sc.slot_kind == "major_elective" else None,
                     ))

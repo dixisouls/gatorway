@@ -22,6 +22,8 @@ def engine():
     admin.dispose()
     eng = create_engine(url)
     init_db(eng)
+    Base.metadata.drop_all(eng)  # always start from the current schema, never an old one
+    init_db(eng)
     yield eng
     eng.dispose()
 
