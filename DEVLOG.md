@@ -25,3 +25,7 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 ## Task 4 — Pathway engine (pure)
 - Added the database-free engine: `models` (Pathway/Slot/Edit/Catalog…), `baseline` (marks passed courses, fills open major-elective seats from the pool, splits "Take N" rows), `validator` (prerequisites incl. later courses, pool/duplicate/units rules, only newly introduced violations block an edit).
 - TDD: tests failed (module missing), then 17/17 passed.
+
+## Task 5 — Ingestion loader
+- Added `ingest/loader.py` (courses upsert, requirement sections/items, roadmaps → terms → slots with slot classification, default roadmap, data_version stamp) and a small hand-built fixture set (`tests/fixtures/mini_*.json`) that mirrors the scraper output.
+- TDD: tests failed (module missing), then 7/7 passed against Postgres — including re-running ingest twice (no duplicates, stable program ids, changed data applied) and a program with no elective list (elective slots stay fixed).
