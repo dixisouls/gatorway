@@ -47,5 +47,26 @@ def passed_courses(extracted: ExtractedTranscript) -> list[ExtractedCourse]:
         code = normalize_code(c.code) or _loose_code(c.code)
         if code is None or not is_passing(c.grade):
             continue
-        best.setdefault(code, c.model_copy(update={"code": code}))
+        best.setdefault(code, c.model_copy(update={"code": code, "term": clean_term(c.term)}))
     return sorted(best.values(), key=lambda c: c.code)
+
+
+_SEASONS = {"fall": "Fall", "fa": "Fall", "spring": "Spring", "sp": "Spring", "spr": "Spring", "summer": "Summer", "su": "Summer", "sum": "Summer",
+            "winter": "Winter", "wi": "Winter", "win": "Winter"}
+
+
+def clean_term(raw: str | None) -> str | None:
+    """A real semester in one readable form ("Fall 2023"), or None. The extractor sometimes puts a nearby label there ("Student ID",
+    a redaction placeholder, a number); that must never be shown as a semester."""
+    t = re.sub(r"\s+", " ", (raw or "").strip())
+    if not t:
+        return None
+    if re.fullmatch(r"transfer( credit)?", t, re.I):
+        return "Transfer credit"
+    m = re.fullmatch(r"([A-Za-z]{2,6})\.?\s*(\d{4}|\d{2})", t)
+    season, year = (m.group(1), m.group(2)) if m else (None, None)
+    if not m and (m2 := re.fullmatch(r"(\d{4})\s+([A-Za-z]{2,6})", t)):
+        year, season = m2.group(1), m2.group(2)
+    if not season or season.lower() not in _SEASONS:
+        return None
+    return f"{_SEASONS[season.lower()]} {year if len(year) == 4 else '20' + year}"

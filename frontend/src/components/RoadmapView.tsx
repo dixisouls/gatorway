@@ -1,21 +1,23 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { readChoices, readSet, writeChoices, writeSet } from "@/lib/choices";
 import { api } from "@/lib/api";
 import { creditHint, geAreas, isGeSlot } from "@/lib/ge";
 import { fmtUnits, shortRoadmapName } from "@/lib/format";
-import { swapDelays } from "@/lib/reveal";
 import type { SavedPathway } from "@/lib/types";
 import { usePathwayRun, type RunSpec } from "@/lib/usePathwayRun";
 import { CourseDrawer } from "./CourseDrawer";
 import { InterestForm } from "./InterestForm";
 import { Roadmap } from "./Roadmap";
 import { RotatingWords } from "./RotatingWords";
+import { ScreenShimmer } from "./ScreenShimmer";
 import { Button } from "./ui/Button";
 import { Sparkle } from "./ui/Sparkle";
 
+const SHIMMER_MS = 1300; // how long the finishing shimmer stays
+const SHIMMER_REVEAL_MS = 450; // when, mid-sweep, the picks replace the baseline cards
 const MAX_AVOID = 20; // the server accepts at most this many
 
 export const personalisePhrases = (interest: string) => [
@@ -41,6 +43,7 @@ export function RoadmapView({ spec, onRerun, onOpenHistory, onAddTranscript }: P
   const [openId, setOpenId] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(new Set());
+  const [shimmer, setShimmer] = useState(false);
   const choiceKey = `gatorway.choices.${spec.programId}.${spec.roadmapId ?? "default"}`;
   const [choices, setChoices] = useState<Record<string, string>>(() => readChoices(choiceKey));
   const doneKey = `gatorway.done.${spec.programId}.${spec.roadmapId ?? "default"}`;
@@ -64,14 +67,20 @@ export function RoadmapView({ spec, onRerun, onOpenHistory, onAddTranscript }: P
     };
   }, []);
 
-  // AI picks land one after another once the real result arrives (saved roadmaps skip the show).
+  // When personalising finishes: a full-screen shimmer plays and, mid-sweep, the picks replace the baseline cards. Saved roadmaps skip it.
+  const shimmered = useRef<number | null>(null);
   useEffect(() => {
     if (!result || spec.saved) return;
-    const timers = Object.entries(swapDelays(result.pathway.terms, result.applied)).map(([id, delay]) =>
-      setTimeout(() => setRevealed((prev) => new Set(prev).add(id)), delay * 1000),
-    );
+    const ids = result.applied.map((a) => a.slot_id);
+    const reveal = () => setRevealed((prev) => new Set([...prev, ...ids]));
+    if (shimmered.current === result.id || !spec.interest) {
+      const t = setTimeout(reveal, 0); // a manual swap, or a run with no interest: no show
+      return () => clearTimeout(t);
+    }
+    shimmered.current = result.id;
+    const timers = [setTimeout(() => setShimmer(true), 0), setTimeout(reveal, SHIMMER_REVEAL_MS), setTimeout(() => setShimmer(false), SHIMMER_MS)];
     return () => timers.forEach(clearTimeout);
-  }, [result, spec.saved]);
+  }, [result, spec.saved, spec.interest]);
 
   const appliedMap = useMemo(() => new Map((result?.applied ?? []).map((a) => [a.slot_id, a])), [result]);
   const baselineSlots = useMemo(() => Object.fromEntries((baseline?.terms ?? []).flatMap((t) => t.slots).map((s) => [s.slot_id, s])), [baseline]);
@@ -103,11 +112,11 @@ export function RoadmapView({ spec, onRerun, onOpenHistory, onAddTranscript }: P
   return (
     <div>
       {pathway ? (
-        <motion.header initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <motion.header initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="roadmap-header">
           <p className="text-sm text-muted">{shortRoadmapName(pathway.roadmap_name, pathway.program_title)}</p>
-          <h1 className="mt-1 font-serif text-4xl leading-tight text-purple sm:text-5xl">{pathway.program_title}</h1>
+          <h1 className="mt-3 text-3xl font-medium leading-tight tracking-tight text-ink sm:text-4xl">{pathway.program_title}</h1>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-muted ring-1 ring-line">
+            <span className="inline-flex max-w-full items-center gap-1.5 break-words rounded-lg bg-purple-soft px-3 py-1.5 text-purple">
               {interest ? (
                 <>
                   <Sparkle size={13} /> Tuned for “{interest}”
@@ -119,7 +128,7 @@ export function RoadmapView({ spec, onRerun, onOpenHistory, onAddTranscript }: P
             {pathway.total_units_required && <span className="rounded-full bg-white/80 px-3 py-1 text-muted ring-1 ring-line">{fmtUnits(pathway.total_units_required)} units to graduate</span>}
           </div>
           {courseCount === 0 && onAddTranscript && (
-            <p className="mt-4 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white/70 px-4 py-2.5 text-sm text-muted ring-1 ring-line">
+            <p className="mt-4 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-white/70 px-4 py-2.5 text-sm text-muted ring-1 ring-line">
               <span>Exploring without a transcript — nothing is marked completed.</span>
               <button type="button" onClick={onAddTranscript} className="font-medium text-purple underline-offset-4 hover:underline">
                 Add a transcript
@@ -139,10 +148,15 @@ export function RoadmapView({ spec, onRerun, onOpenHistory, onAddTranscript }: P
               <Sparkle size={14} /> New interest
             </Button>
           </div>
+          <div className="roadmap-meta" aria-label="Roadmap overview">
+            <div><strong>{pathway.terms.filter((term) => term.slots.length > 0).length}</strong> semesters</div>
+            <div><strong>{pathway.terms.flatMap((term) => term.slots).filter((slot) => slot.status === "passed" || done.has(slot.slot_id)).length}</strong> marked complete</div>
+            <div><strong>{result?.applied.length ?? 0}</strong> course picks</div>
+          </div>
           <AnimatePresence>
             {asking && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <div className="mt-5 rounded-[2rem] border border-line bg-white/70 p-5 shadow-soft backdrop-blur">
+                <div className="mt-5 rounded-md border border-line bg-white/70 p-5 ">
                   <InterestForm
                     initial={interest ?? ""}
                     submitLabel="Build it"
@@ -180,18 +194,29 @@ export function RoadmapView({ spec, onRerun, onOpenHistory, onAddTranscript }: P
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>{shimmer && <ScreenShimmer key="shimmer" />}</AnimatePresence>
+      {run.phase === "done" && spec.interest && !spec.saved && (
+        <p role="status" className="ready-notice">
+          <span aria-hidden="true">✓</span>
+          {result?.note
+            ? "Your roadmap is ready. See the note below for details."
+            : result?.applied.length
+              ? "Your personalized roadmap is ready. Explore your picks below."
+              : "Your roadmap is ready. Review the plan and any notes below."}
+        </p>
+      )}
 
       {run.phase === "error" && run.error && (
-        <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-gold-soft px-5 py-4 text-sm text-[#6b5a2a]">
+        <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-md bg-gold-soft px-5 py-4 text-sm text-[#6b5a2a]">
           <span className="flex-1">{run.error}</span>
           <Button variant="soft" onClick={run.retry}>
             Try again
           </Button>
         </div>
       )}
-      {result?.note && <p className="mb-6 rounded-2xl bg-gold-soft px-5 py-4 text-sm text-[#6b5a2a]">{result.note}</p>}
+      {result?.note && <p className="mb-6 rounded-md bg-gold-soft px-5 py-4 text-sm text-[#6b5a2a]">{result.note}</p>}
       {result && result.warnings.length > 0 && (
-        <details className="mb-6 rounded-2xl bg-white/70 px-5 py-3 text-sm text-muted ring-1 ring-line">
+        <details className="mb-6 rounded-md bg-white/70 px-5 py-3 text-sm text-muted ring-1 ring-line">
           <summary className="cursor-pointer">Things to double-check ({result.warnings.length})</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {result.warnings.map((w) => (

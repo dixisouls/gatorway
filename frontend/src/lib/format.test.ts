@@ -63,3 +63,10 @@ test("a GE slot is labelled general education even after a course replaces its t
   const ge = { slot_id: "g", codes: ["SOC 100"], title: "Introduction to Sociology", label: "GE Area 4: Social", units: 3, slot_kind: "ge" as const, swappable: true, pool_section_id: null, counts_toward_major: false, status: "replaced" as const };
   expect(kindLabel(ge)).toBe("General education");
 });
+
+test("a transcript line that is not a semester (an ID label, a placeholder) is never a term heading", () => {
+  const c = (code: string, term: string | null) => ({ code, grade: "A", term, flagged: false });
+  const groups = groupByTerm([c("CSC 101", "Student ID"), c("CSC 215", "[STUDENT ID]"), c("MATH 226", "Fall 2023"), c("ART 1", "SP2025"), c("ENGL 1A", "Transfer Credit")]);
+  expect(groups.map((g) => g.term)).toEqual(["Fall 2023", "SP2025", "Transfer Credit", "Other"]);
+  expect(groups.find((g) => g.term === "Other")?.courses.map((x) => x.code)).toEqual(["CSC 101", "CSC 215"]);
+});

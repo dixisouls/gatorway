@@ -45,16 +45,16 @@ export function GeList({ areas }: { areas: string[] }) {
         className="w-full rounded-full border border-line bg-white/80 px-4 py-2.5 text-sm outline-none transition focus:border-purple/40 focus:ring-4 focus:ring-purple-soft"
       />
       {error && (
-        <p role="alert" className="mt-3 rounded-2xl bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
+        <p role="alert" className="mt-3 rounded-md bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
           {error}
         </p>
       )}
       <ul className="mt-4 flex flex-col gap-3">
-        {items === null && [0, 1, 2].map((i) => <li key={i} className="h-20 animate-shimmer rounded-2xl bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />)}
+        {items === null && [0, 1, 2].map((i) => <li key={i} className="h-20 animate-shimmer rounded-md bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />)}
         {items?.length === 0 && !error && <li className="text-sm text-muted">No courses are labelled for this area yet.</li>}
         {items && items.length > 0 && shown?.length === 0 && <li className="text-sm text-muted">No courses match that filter.</li>}
         {shown?.map((c) => (
-          <li key={c.code} className="rounded-2xl border border-line bg-white/80 p-4">
+          <li key={c.code} className="rounded-md border border-line bg-white/80 p-4">
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted">
               {c.code} · {fmtUnits(c.units_min)} units
             </p>

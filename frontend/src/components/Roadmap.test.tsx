@@ -20,13 +20,12 @@ const pathway: Pathway = {
 const applied = new Map<string, AppliedEdit>([["b", { slot_id: "b", new_course_code: "ART 101", title: "Drawing", reason: "Fits your interest." }]]);
 const props = { pathway, baselineSlots: { b: was }, applied, generating: false, onOpen: () => {} };
 
-test("lists the terms in order, each with its units, and an arrow between terms", () => {
+test("lists the terms in order, each with its units", () => {
   render(<Roadmap {...props} isRevealed={() => true} />);
   const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
   expect(headings).toEqual(["First Semester", "Second Semester"]);
   expect(screen.getAllByText("6 units")).toHaveLength(1); // the first term's total
   expect(screen.getAllByText("4 units")).toHaveLength(2); // the second term's total and its one 4-unit card
-  expect(screen.getAllByTestId("term-arrow")).toHaveLength(1);
 });
 
 test("an AI pick that has not landed yet still shows the baseline course", () => {

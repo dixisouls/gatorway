@@ -48,7 +48,7 @@ test("an AI pick wears the sparkle badge and says why", () => {
   expect(screen.getByText("Drawing fundamentals match your interest.")).toBeInTheDocument();
 });
 
-test("a card expands in place to show what the course is about, and collapses again", async () => {
+test("a card opens its details in a separate panel and restores focus when closed", async () => {
   render(<CourseCard slot={slot()} {...base} />);
   const header = screen.getByRole("button", { name: /Data Structures/ });
   expect(header).toHaveAttribute("aria-expanded", "false");
@@ -58,8 +58,11 @@ test("a card expands in place to show what the course is about, and collapses ag
   expect(screen.getByText("Prerequisite: CSC 215.")).toBeInTheDocument();
   expect(screen.getByText("Writing intensive")).toBeInTheDocument();
   expect(courses).toHaveBeenCalledTimes(1);
-  await userEvent.click(header);
+  const dialog = screen.getByRole("dialog", { name: "CSC 220 details" });
+  expect(header.closest("article")).not.toContainElement(dialog);
+  await userEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(header).toHaveAttribute("aria-expanded", "false");
+  expect(header).toHaveFocus();
 });
 
 test("an expanded elective offers the other options", async () => {
@@ -131,13 +134,13 @@ test("an option in a Choose one group can be chosen and shows it was", async () 
   expect(screen.getByText("✓ Your choice")).toBeInTheDocument();
 });
 
-test("expanding opens the card in place: it keeps its column and does not blur what is behind it", async () => {
+test("opening details keeps the course description outside the card", async () => {
   render(<CourseCard slot={slot()} {...base} />);
   const article = screen.getByRole("button", { name: /Data Structures/ }).closest("article")!;
   await userEvent.click(screen.getByRole("button", { name: /Data Structures/ }));
   await screen.findByText("Lists, trees and graphs.");
-  expect(article.className).not.toMatch(/col-span/); // changing the grid span made the whole row jump
-  expect(article.className).not.toMatch(/backdrop-blur/); // a blur repaints every frame while the height animates
+  expect(article).not.toContainElement(screen.getByText("Lists, trees and graphs."));
+  expect(screen.getByRole("dialog")).toContainElement(screen.getByText("Lists, trees and graphs."));
 });
 
 test("the details open in one smooth motion once loaded, with a small cue until then", async () => {
@@ -189,4 +192,13 @@ test("an expanded GE choice offers the other options", async () => {
   await userEvent.click(screen.getByRole("button", { name: /Introduction to Sociology/ }));
   await userEvent.click(await screen.findByRole("button", { name: "See other options" }));
   expect(onOpen).toHaveBeenCalledTimes(1);
+});
+
+test("an AI pick is golden", () => {
+  render(
+    <CourseCard slot={slot({ codes: ["ART 101"], title: "Drawing", status: "replaced", swappable: true, slot_kind: "free_elective" })} applied={{ slot_id: "s1", new_course_code: "ART 101", title: "Drawing", reason: "Fits." }} {...base} isPick />,
+  );
+  const card = screen.getByRole("button", { name: /Drawing/ }).closest("article")!;
+  expect(card.className).toMatch(/border-gold/);
+  expect(card.className).not.toMatch(/purple/);
 });

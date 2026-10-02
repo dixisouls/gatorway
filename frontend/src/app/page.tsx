@@ -10,7 +10,7 @@ export default function Home() {
   if (!ready) {
     return (
       <main className="grid min-h-dvh place-items-center">
-        <Sparkle size={36} spin />
+        <Sparkle size={36} spin className="text-accent" />
       </main>
     );
   }

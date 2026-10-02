@@ -174,3 +174,28 @@ test("with a transcript on file there is no exploring notice", async () => {
   await new Promise((r) => setTimeout(r, 50));
   expect(screen.queryByText(/Exploring without a transcript/)).not.toBeInTheDocument();
 });
+
+test("while Gemini works the roadmap stays usable: no blocking overlay, just the working chip", async () => {
+  createPathway.mockReturnValue(new Promise(() => {}));
+  render(<RoadmapView spec={spec()} onRerun={noop} onOpenHistory={noop} />);
+  expect(await screen.findByText("SF State Studies or University Elective")).toBeInTheDocument(); // the roadmap is already there
+  expect(screen.getByText(`${personalisePhrases("drawing")[0]}…`)).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("screen-shimmer")).not.toBeInTheDocument();
+});
+
+test("when personalising finishes a full-screen shimmer plays, the picks land, and the shimmer goes away", async () => {
+  let finish: (v: SavedPathway) => void = () => {};
+  createPathway.mockReturnValue(new Promise<SavedPathway>((resolve) => (finish = resolve)));
+  render(<RoadmapView spec={spec()} onRerun={noop} onOpenHistory={noop} />);
+  await screen.findByText("SF State Studies or University Elective");
+  finish(result());
+  expect(await screen.findByTestId("screen-shimmer")).toBeInTheDocument();
+  expect(await screen.findByText("Drawing", {}, { timeout: 2000 })).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByTestId("screen-shimmer")).not.toBeInTheDocument(), { timeout: 3000 });
+});
+
+test("a saved roadmap opens without any shimmer", () => {
+  render(<RoadmapView spec={spec({ saved: result() })} onRerun={noop} onOpenHistory={noop} />);
+  expect(screen.queryByTestId("screen-shimmer")).not.toBeInTheDocument();
+});

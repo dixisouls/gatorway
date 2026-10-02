@@ -23,7 +23,8 @@ interface RoadmapProps {
   creditAreas?: string[]; // GE areas the transcript already has credit for
 }
 
-/** A soft S-curve that drifts from one term to the next, alternating sides; draws itself in when scrolled into view. */
+/** The soft S-curve between semesters: draws itself in when scrolled into view, with a glow, a gold dot and an arrowhead.
+ *  Fixed shape, alternating: one curves left-to-right, the next right-to-left. */
 function TermArrow({ index }: { index: number }) {
   const id = useId();
   const flip = index % 2 === 0;
@@ -51,20 +52,20 @@ export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generatin
   const delays = revealDelays(terms);
 
   return (
-    <div>
-      {terms.map((term, i) => (
-        <section key={term.position} aria-label={term.label}>
-          {i > 0 && <TermArrow index={i} />}
-          <div className="mb-3 flex items-baseline justify-between px-1">
-            <h3 className="font-serif text-xl text-purple">{term.label}</h3>
-            <span className="text-sm text-muted">{fmtUnits(termUnits(term))} units</span>
+    <div className="semester-board">
+      {terms.map((term, index) => (
+        <div key={term.position} className="term-cell">
+        <section aria-label={term.label} className="term-section">
+          <div className="term-heading">
+            <div className="flex items-center gap-3"><span className="semester-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><h3 className="text-ink">{term.label}</h3></div>
+            <span className="text-xs text-muted">{fmtUnits(termUnits(term))} units</span>
           </div>
           <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {groupChoices(term.slots).map((item) => {
               if (item.kind === "choice") {
                 const chosen = choices[item.header.slot_id] ?? item.options.find((o) => o.status === "passed")?.codes[0];
                 return (
-                  <div key={item.header.slot_id} className="rounded-[1.6rem] border border-dashed border-purple/25 bg-white/40 p-4 sm:col-span-2 lg:col-span-3">
+                  <div key={item.header.slot_id} className="rounded-sm border border-dashed border-ink/20 bg-white/20 p-3 sm:col-span-2 lg:col-span-3">
                     <div className="mb-1 flex items-baseline justify-between px-1">
                       <p className="text-xs font-medium uppercase tracking-wider text-muted">Choose one</p>
                       <span className="text-sm text-muted">{fmtUnits(item.header.units)} units</span>
@@ -106,6 +107,8 @@ export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generatin
             })}
           </div>
         </section>
+        {index < terms.length - 1 && <TermArrow index={index + 1} />}
+        </div>
       ))}
     </div>
   );
