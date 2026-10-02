@@ -21,7 +21,7 @@ export const EXTRACT_PHRASES = [
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type Phase = "idle" | "extracting" | "done" | "error";
 
-export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () => void; onSkip?: () => void; minMs?: number }) {
+export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: (summary: TranscriptSummary | null) => void; onSkip?: () => void; minMs?: number }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [summary, setSummary] = useState<TranscriptSummary | null>(null);
   const [saved, setSaved] = useState<TranscriptSummary | null>(null);
@@ -91,7 +91,7 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
               {saved && (
                 <div className="mt-5 flex flex-col items-center gap-2 text-sm text-muted">
                   <span>We already have courses from your last upload.</span>
-                  <Button variant="soft" onClick={onDone}>
+                  <Button variant="soft" onClick={() => onDone(saved)}>
                     Use my {saved.count} saved courses
                   </Button>
                 </div>
@@ -147,7 +147,7 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
                 </p>
               )}
               <div className="mt-8 flex justify-center">
-                <Button onClick={onDone}>Continue</Button>
+                <Button onClick={() => onDone(summary)}>Continue</Button>
               </div>
             </motion.div>
           )}

@@ -22,13 +22,13 @@ const LEVELS = [
   { label: "Certificate", value: "certificate" },
 ];
 
-export function ProgramStep({ onChosen }: { onChosen: (p: ChosenProgram) => void }) {
+export function ProgramStep({ onChosen, initial = null }: { onChosen: (p: ChosenProgram) => void; initial?: ProgramBrief | null }) {
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState("");
   const debounced = useDebounced(query, 250);
   const [programs, setPrograms] = useState<ProgramBrief[] | null>(null);
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState<ProgramBrief | null>(null);
+  const [selected, setSelected] = useState<ProgramBrief | null>(initial); // a degree confirmed from the transcript starts chosen
   const [roadmaps, setRoadmaps] = useState<RoadmapBrief[] | null>(null); // null while loading
   const [roadmapId, setRoadmapId] = useState<number | null>(null);
   const latestPick = useRef(0);
@@ -47,6 +47,24 @@ export function ProgramStep({ onChosen }: { onChosen: (p: ChosenProgram) => void
       alive = false;
     };
   }, [debounced, level]);
+
+  // A confirmed degree skips the list: fetch its roadmap options straight away.
+  useEffect(() => {
+    if (!initial) return;
+    const pick = ++latestPick.current;
+    api
+      .roadmaps(initial.id)
+      .then((r) => {
+        if (pick !== latestPick.current) return;
+        setRoadmaps(r.roadmaps);
+        setRoadmapId((r.roadmaps.find((x) => x.is_default) ?? r.roadmaps[0])?.id ?? null);
+      })
+      .catch(() => {
+        if (pick !== latestPick.current) return;
+        setRoadmaps([]);
+        setError("We couldn't load that program's roadmaps. Please try again.");
+      });
+  }, [initial]);
 
   function choose(p: ProgramBrief) {
     const pick = ++latestPick.current;

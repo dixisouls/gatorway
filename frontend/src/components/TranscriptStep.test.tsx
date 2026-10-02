@@ -35,7 +35,7 @@ test("reads the transcript, lists the courses found and continues", async () => 
   expect(within(term).getByText("College Composition")).toBeInTheDocument(); // what the transcript calls it, so the student can check it
   expect(within(term).getByText("Transfer credit")).toBeInTheDocument(); // described, not called an error
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-  expect(onDone).toHaveBeenCalled();
+  expect(onDone).toHaveBeenCalledWith(summary); // the Planner uses the summary to offer the degree found on the transcript
 });
 
 test("shows only changing words while extracting: no bar and no privacy text", async () => {
@@ -75,7 +75,7 @@ test("offers to reuse the courses already saved", async () => {
   const onDone = vi.fn();
   render(<TranscriptStep onDone={onDone} minMs={0} />);
   await userEvent.click(await screen.findByRole("button", { name: "Use my 6 saved courses" }));
-  expect(onDone).toHaveBeenCalled();
+  expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ count: 6 }));
 });
 
 test("a newcomer can skip the transcript and look around", async () => {
