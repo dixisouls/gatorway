@@ -72,6 +72,7 @@ def build_state(settings: Settings | None = None) -> AppState:
     service = PathwayService(
         llm=llm, cache=cache, catalog_provider=catalog, mcp_factory=lambda: Client(settings.mcp_url),
         allowed_tools=settings.gemini_tool_set, model_name=settings.gemini_model,
+        edit_timeout_s=settings.edit_timeout_s,
     )
     return AppState(
         settings=settings, engine=engine, redis=r, cache=cache, limiter=RateLimiter(r), redactor=StubRedactor(),

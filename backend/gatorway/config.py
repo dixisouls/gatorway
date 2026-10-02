@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     extractor_api_key: str = ""
 
     mcp_url: str = "http://127.0.0.1:8001/mcp"
+    edit_timeout_s: float = 120  # whole Gemini personalisation (several tool rounds, ~6 s each); then the baseline is shown
     gemini_tools: str = "get_baseline,get_requirements,search_courses,validate_edits"
 
     scrape_dir: str = "scraping/sfsu_output"
