@@ -54,3 +54,9 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 - TDD: tests failed (module missing), then 11/11 passed (pool restriction, passed/planned exclusion, prerequisite feasibility filter, undergraduate level filter, no-embedding courses never returned, empty results, dry-run validation, cached query embeddings).
 - Real-data check (CS B.S. with core passed): 7 open swappable slots; major-elective search returns only courses from the program's own elective list, free-elective search returns undergraduate courses of any subject.
 - **Open item:** semantic quality needs real Gemini embeddings — set `GEMINI_API_KEY` in `.env` and run `python -m gatorway.ingest --embeddings gemini` (only changed courses are re-embedded). Right now the DB holds the offline word-overlap stand-in.
+
+## Task 10 — Gemini adapter and pathway orchestrator
+- Added `llm/ports.py` (Intent, LlmPort), `llm/gemini.py` (intent parsing with structured output; tool-calling loop over the MCP client with an allowlist; tolerant JSON edit parsing; student text treated as data) and `llm/orchestrator.py` (`PathwayService`: baseline → intent → cache → single-flight lock → Gemini edits → authoritative validation with up to 2 retries → graceful fallbacks).
+- TDD: tests failed (module missing), then 18/18 passed — no network used. Covers: no interest, no specialization, no swappable slots (Gemini never called), valid edit + cache hit, injection attempt on a core slot dropped, retry with validator feedback, give-up after max retries, Gemini/intent failure and Redis-session failure degrade to the baseline with a note (and are not cached), concurrent identical requests run Gemini once.
+- Confirmed the installed `google-genai` still exposes `parameters_json_schema` and `function_calls`.
+- Not yet exercised with the **real Gemini** (no `GEMINI_API_KEY` in this environment) — done in the final smoke test.
