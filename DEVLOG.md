@@ -69,3 +69,8 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 - Added argon2 password hashing + JWT helpers + the `sfsu.edu`/subdomain email check; the app state/builder; a uniform error envelope (`{"error": {code, message, details}}`); auth deps and per-IP / per-user rate limiting; `/auth/signup`, `/auth/login`, `/auth/me`; `/health` (Postgres + Redis, 503 if either is down).
 - TDD: tests failed (package missing), then 27/27 passed (email tricks like `evilsfsu.edu` / `sfsu.edu.evil.com`, duplicate emails, identical login failures for wrong password vs unknown user, expired tokens, login rate limit, login still works with Redis down).
 - **Real boot check:** started `uvicorn` against the real Postgres and Redis — `/health` → ok/ok/ok; a real signup returned a token; an `@evilsfsu.edu` signup was rejected with `invalid_email`. The throwaway test user was deleted.
+
+## Task 13 — Transcript upload and saved-courses routes
+- Added `POST /transcripts` (PDF only, ≤10 MB; local text extraction → redaction → extractor → SFSU check → save), `GET /me/courses`, `DELETE /me/courses`.
+- TDD: 10 tests failed (routes missing). After adding the routes, 5 still failed — a bug in the plan's code (`dict(db.execute(...))` treats a SQLAlchemy result as a mapping); fixed with `.all()`, then 10/10 passed. I also corrected the same line in the plan document.
+- Covers: unknown codes flagged but kept, the extractor only ever sees redacted text, re-upload replaces the list, a non-SFSU transcript is rejected without touching the saved list, unreadable/oversized files, extractor outage → 502 with nothing changed, an empty transcript is fine, login + rate limit (5 uploads/hour).
