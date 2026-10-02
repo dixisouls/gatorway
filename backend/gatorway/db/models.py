@@ -160,6 +160,7 @@ class UserCourse(Base):
     course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"))
     grade: Mapped[str | None] = mapped_column(String(8))
     term: Mapped[str | None] = mapped_column(String(32))
+    title: Mapped[str | None] = mapped_column(Text)  # as printed on the transcript, so lines we cannot match (transfer credit) can be recognised
     flagged: Mapped[bool] = mapped_column(Boolean, default=False)  # code not found in `courses`
 
     __table_args__ = (UniqueConstraint("user_id", "raw_code", name="uq_user_course"),)

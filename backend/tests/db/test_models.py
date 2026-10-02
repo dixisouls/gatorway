@@ -48,3 +48,15 @@ def test_a_course_can_be_saved_once_per_user(db):
     db.add(UserCourse(user_id=u.id, raw_code="CSC 101"))
     with pytest.raises(IntegrityError):
         db.commit()
+
+
+def test_init_db_adds_columns_that_were_added_after_a_table_already_existed(engine):
+    from sqlalchemy import text
+
+    from gatorway.db.session import init_db
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE user_courses DROP COLUMN IF EXISTS title"))
+    init_db(engine)
+    with engine.connect() as conn:
+        conn.execute(text("SELECT title FROM user_courses LIMIT 1"))  # raises if the column is missing

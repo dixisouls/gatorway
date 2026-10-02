@@ -26,7 +26,7 @@ def _payload(db: Session, user_id: int) -> dict:
     rows = db.scalars(select(UserCourse).where(UserCourse.user_id == user_id).order_by(UserCourse.raw_code)).all()
     return {
         "count": len(rows),
-        "courses": [{"code": r.raw_code, "grade": r.grade, "term": r.term, "flagged": r.flagged} for r in rows],
+        "courses": [{"code": r.raw_code, "title": r.title, "grade": r.grade, "term": r.term, "flagged": r.flagged} for r in rows],
         "flagged": [r.raw_code for r in rows if r.flagged],
     }
 
@@ -56,7 +56,7 @@ async def upload_transcript(file: UploadFile, user: User = Depends(current_user)
     ids = dict(db.execute(select(Course.code, Course.id).where(Course.code.in_([c.code for c in passed]))).all()) if passed else {}
     db.execute(delete(UserCourse).where(UserCourse.user_id == user.id))
     for c in passed:
-        db.add(UserCourse(user_id=user.id, raw_code=c.code, course_id=ids.get(c.code), grade=c.grade, term=c.term, flagged=c.code not in ids))
+        db.add(UserCourse(user_id=user.id, raw_code=c.code, course_id=ids.get(c.code), grade=c.grade, term=c.term, title=c.title, flagged=c.code not in ids))
     db.commit()
     return _payload(db, user.id)
 

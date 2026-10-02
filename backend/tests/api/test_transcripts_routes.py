@@ -127,3 +127,15 @@ def test_endpoints_require_a_login_and_uploads_are_rate_limited(make_state, make
     h = auth(client)
     codes = [upload(client, h, make_pdf(TEXT)).status_code for _ in range(6)]
     assert codes[:5] == [201] * 5 and codes[5] == 429
+
+
+def test_the_transcript_title_is_kept_so_odd_lines_can_be_recognised(make_state, make_pdf, catalog):
+    ex = FakeExtractor(ExtractedTranscript(is_sfsu_transcript=True, courses=[
+        ExtractedCourse(code="ENGL 1A", title="College Composition", grade="A", term="Fall 2022"),
+        ExtractedCourse(code="CSC 101", title="Introduction to Computing", grade="A", term="Fall 2023"),
+    ]))
+    client = make_client(make_state, ex)
+    h = auth(client)
+    body = upload(client, h, make_pdf(TEXT)).json()
+    assert [(c["code"], c["title"], c["flagged"]) for c in body["courses"]] == [("CSC 101", "Introduction to Computing", False), ("ENGL 1A", "College Composition", True)]
+    assert client.get("/me/courses", headers=h).json()["courses"][1]["title"] == "College Composition"
