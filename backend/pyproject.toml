@@ -25,6 +25,7 @@ dependencies = [
   "anyio>=4",
   "tqdm>=4",
   "sentence-transformers>=3",
+  "gliner>=0.2",
 ]
 
 [project.optional-dependencies]

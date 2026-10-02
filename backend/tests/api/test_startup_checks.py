@@ -17,3 +17,15 @@ def test_a_long_random_secret_is_accepted():
 def test_build_state_checks_the_secret_before_touching_any_service():
     with pytest.raises(RuntimeError, match="JWT_SECRET"):
         build_state(Settings(_env_file=None))
+
+
+def test_the_redactor_is_chosen_by_setting_and_the_real_one_is_the_default():
+    from gatorway.api.state import build_redactor
+    from gatorway.transcripts.pii import GlinerRedactor
+    from gatorway.transcripts.redact import StubRedactor
+
+    assert Settings(_env_file=None).redactor == "gliner"
+    assert isinstance(build_redactor(Settings(_env_file=None, redactor="stub")), StubRedactor)
+    assert isinstance(build_redactor(Settings(_env_file=None)), GlinerRedactor)  # lazy: the model loads on first use, not here
+    with pytest.raises(ValueError):
+        build_redactor(Settings(_env_file=None, redactor="nope"))

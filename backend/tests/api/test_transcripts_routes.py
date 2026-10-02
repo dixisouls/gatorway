@@ -139,3 +139,17 @@ def test_the_transcript_title_is_kept_so_odd_lines_can_be_recognised(make_state,
     body = upload(client, h, make_pdf(TEXT)).json()
     assert [(c["code"], c["title"], c["flagged"]) for c in body["courses"]] == [("CSC 101", "Introduction to Computing", False), ("ENGL 1A", "College Composition", True)]
     assert client.get("/me/courses", headers=h).json()["courses"][1]["title"] == "College Composition"
+
+
+def test_when_redaction_fails_nothing_is_sent_to_the_extractor(make_state, make_pdf, catalog):
+    from gatorway.transcripts.pii import RedactionError
+
+    class BrokenRedactor:
+        def redact(self, text):
+            raise RedactionError("model missing")
+
+    ex = FakeExtractor(transcript(("CSC 101", "A")))
+    client = make_client(make_state, ex, redactor=BrokenRedactor())
+    r = upload(client, auth(client), make_pdf(TEXT))
+    assert r.status_code == 503 and r.json()["error"]["code"] == "redaction_unavailable"
+    assert ex.received == []  # fail closed: unredacted text never leaves

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -21,6 +22,9 @@ def create_app(state: AppState | None = None, init_db_on_startup: bool = True) -
     async def lifespan(app: FastAPI):
         if init_db_on_startup:
             init_db(app.state.gw.engine)
+        warm = getattr(app.state.gw.redactor, "warm", None)
+        if warm is not None:  # load the PII model in the background so the first upload is not slow
+            threading.Thread(target=warm, daemon=True).start()
         yield
 
     app = FastAPI(title="GatorWay API", version="0.1.0", lifespan=lifespan)

@@ -17,6 +17,7 @@ from gatorway.llm.client import gemini_configured, make_genai_client
 from gatorway.llm.gemini import GeminiLlm
 from gatorway.llm.orchestrator import PathwayService
 from gatorway.transcripts.extractor_client import ExtractorClient, HttpExtractor
+from gatorway.transcripts.pii import GlinerRedactor
 from gatorway.transcripts.redact import Redactor, StubRedactor
 
 
@@ -54,6 +55,14 @@ def check_secrets(settings: Settings) -> None:
         )
 
 
+def build_redactor(settings: Settings) -> Redactor:
+    if settings.redactor == "stub":
+        return StubRedactor()
+    if settings.redactor == "gliner":
+        return GlinerRedactor(settings.gliner_model, settings.gliner_threshold, settings.gliner_person_threshold)  # loads lazily
+    raise ValueError(f"unknown REDACTOR {settings.redactor!r} (use gliner or stub)")
+
+
 def build_state(settings: Settings | None = None) -> AppState:
     settings = settings or get_settings()
     check_secrets(settings)
@@ -75,6 +84,6 @@ def build_state(settings: Settings | None = None) -> AppState:
         edit_timeout_s=settings.edit_timeout_s,
     )
     return AppState(
-        settings=settings, engine=engine, redis=r, cache=cache, limiter=RateLimiter(r), redactor=StubRedactor(),
+        settings=settings, engine=engine, redis=r, cache=cache, limiter=RateLimiter(r), redactor=build_redactor(settings),
         extractor=HttpExtractor(settings.extractor_url, settings.extractor_api_key), pathway_service=service,
     )

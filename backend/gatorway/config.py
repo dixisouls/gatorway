@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"
     jwt_ttl_minutes: int = 1440
 
+    # transcript redaction: "gliner" = local PII model (nvidia/gliner-PII), "stub" = no redaction (tests and demos only)
+    redactor: str = "gliner"
+    gliner_model: str = "nvidia/gliner-PII"
+    gliner_threshold: float = 0.5
+    gliner_person_threshold: float = 0.3
+
     extractor_url: str = "http://127.0.0.1:8080"
     extractor_api_key: str = ""
 

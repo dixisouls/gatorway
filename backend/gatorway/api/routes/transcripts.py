@@ -43,7 +43,11 @@ async def upload_transcript(file: UploadFile, user: User = Depends(current_user)
     except NoTextError as e:
         raise ApiError(422, "unreadable_pdf", str(e))
 
-    redacted = state.redactor.redact(text)
+    try:
+        redacted = await run_in_threadpool(state.redactor.redact, text)
+    except Exception:  # fail closed: if redaction cannot run, the text goes nowhere
+        log.exception("redaction failed; transcript not sent to the extractor")
+        raise ApiError(503, "redaction_unavailable", "We couldn't prepare your transcript safely, so nothing was sent. Please try again shortly.")
     try:
         extracted = await state.extractor.extract(redacted)
     except ExtractorError as e:
