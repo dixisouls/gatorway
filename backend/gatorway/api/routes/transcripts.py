@@ -8,10 +8,12 @@ from fastapi.responses import Response
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from gatorway import catalog_queries as q
 from gatorway.db.models import Course, User, UserCourse
 from gatorway.transcripts.extraction import passed_courses
 from gatorway.transcripts.extractor_client import ExtractorError
 from gatorway.transcripts.pdf import NoTextError, extract_text
+from gatorway.transcripts.program_match import rank_programs
 
 from ..deps import current_user, get_db, get_state, user_rate_limit
 from ..errors import ApiError
@@ -22,9 +24,11 @@ router = APIRouter(tags=["transcripts"])
 MAX_PDF_BYTES = 10 * 1024 * 1024
 
 
-def _payload(db: Session, user_id: int) -> dict:
-    rows = db.scalars(select(UserCourse).where(UserCourse.user_id == user_id).order_by(UserCourse.raw_code)).all()
+def _payload(db: Session, user: User) -> dict:
+    rows = db.scalars(select(UserCourse).where(UserCourse.user_id == user.id).order_by(UserCourse.raw_code)).all()
+    raw = user.transcript_program
     return {
+        "program": {"raw": raw, "candidates": rank_programs(raw, q.all_programs(db)) if raw else []},
         "count": len(rows),
         "courses": [{"code": r.raw_code, "title": r.title, "grade": r.grade, "term": r.term, "flagged": r.flagged} for r in rows],
         "flagged": [r.raw_code for r in rows if r.flagged],
@@ -61,17 +65,19 @@ async def upload_transcript(file: UploadFile, user: User = Depends(current_user)
     db.execute(delete(UserCourse).where(UserCourse.user_id == user.id))
     for c in passed:
         db.add(UserCourse(user_id=user.id, raw_code=c.code, course_id=ids.get(c.code), grade=c.grade, term=c.term, title=c.title, flagged=c.code not in ids))
+    user.transcript_program = (extracted.program or "").strip()[:255] or None
     db.commit()
-    return _payload(db, user.id)
+    return _payload(db, user)
 
 
 @router.get("/me/courses")
 def my_courses(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    return _payload(db, user.id)
+    return _payload(db, user)
 
 
 @router.delete("/me/courses", status_code=204)
 def delete_my_courses(user: User = Depends(current_user), db: Session = Depends(get_db)):
     db.execute(delete(UserCourse).where(UserCourse.user_id == user.id))
+    user.transcript_program = None
     db.commit()
     return Response(status_code=204)

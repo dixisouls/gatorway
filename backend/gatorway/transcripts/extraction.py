@@ -17,6 +17,7 @@ class ExtractedCourse(BaseModel):
 
 class ExtractedTranscript(BaseModel):
     is_sfsu_transcript: bool
+    program: str | None = None  # the degree or major as printed on the transcript
     courses: list[ExtractedCourse] = Field(default_factory=list)
 
 

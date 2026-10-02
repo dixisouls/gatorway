@@ -32,7 +32,7 @@ def test_extractor_returns_structured_json_and_guards_the_key():
 def test_extractor_not_sfsu_is_reported_not_errored():
     fc = FakeClient('{"is_sfsu_transcript": false, "courses": []}')
     r = TestClient(create_app(client=fc, model="m", api_key="", allow_anonymous=True)).post("/extract", json={"text": "UC Berkeley transcript"})
-    assert r.status_code == 200 and r.json() == {"is_sfsu_transcript": False, "courses": []}
+    assert r.status_code == 200 and r.json() == {"is_sfsu_transcript": False, "program": None, "courses": []}
 
 
 
@@ -46,3 +46,10 @@ def test_the_extractor_refuses_to_start_without_an_api_key_unless_anonymous_is_e
     create_app(client=FakeClient("{}"), model="m", allow_anonymous=True)
     monkeypatch.setenv("EXTRACTOR_ALLOW_ANONYMOUS", "true")
     create_app(client=FakeClient("{}"), model="m")
+
+
+def test_the_extractor_also_reads_the_degree_program_and_asks_for_it():
+    fc = FakeClient(ExtractResponse(is_sfsu_transcript=True, program="B.S. Computer Science", courses=[]).model_dump_json())
+    r = TestClient(create_app(client=fc, model="m", api_key="", allow_anonymous=True)).post("/extract", json={"text": "San Francisco State University\nProgram: B.S. Computer Science"})
+    assert r.json()["program"] == "B.S. Computer Science"
+    assert "program" in fc.calls[0]["contents"].lower() and "major" in fc.calls[0]["contents"].lower()

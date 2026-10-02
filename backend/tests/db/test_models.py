@@ -57,9 +57,11 @@ def test_init_db_adds_columns_that_were_added_after_a_table_already_existed(engi
 
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE user_courses DROP COLUMN IF EXISTS title"))
+        conn.execute(text("ALTER TABLE users DROP COLUMN IF EXISTS transcript_program"))
     init_db(engine)
     with engine.connect() as conn:
         conn.execute(text("SELECT title FROM user_courses LIMIT 1"))  # raises if the column is missing
+        conn.execute(text("SELECT transcript_program FROM users LIMIT 1"))
 
 
 def test_init_db_makes_users_ready_for_firebase_on_an_existing_database(engine):

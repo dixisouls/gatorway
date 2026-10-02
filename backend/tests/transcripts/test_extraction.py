@@ -58,3 +58,8 @@ def test_anything_that_is_not_a_term_is_dropped_never_shown_as_a_semester(raw):
 def test_the_cleaned_term_is_what_gets_saved():
     ex = ExtractedTranscript(is_sfsu_transcript=True, courses=[ExtractedCourse(code="CSC 101", grade="A", term="[STUDENT ID]"), ExtractedCourse(code="CSC 215", grade="B", term="SP2025")])
     assert [(c.code, c.term) for c in passed_courses(ex)] == [("CSC 101", None), ("CSC 215", "Spring 2025")]
+
+
+def test_the_degree_is_optional_on_the_extractor_response():
+    assert ExtractedTranscript(is_sfsu_transcript=True).program is None
+    assert ExtractedTranscript.model_validate({"is_sfsu_transcript": True, "program": "B.S. Computer Science", "courses": []}).program == "B.S. Computer Science"
