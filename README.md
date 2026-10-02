@@ -50,6 +50,4 @@ Transfer and GE credit on a transcript isn't matched to SFSU courses yet (studen
 
 ---
 
----
-
 Developer docs: [`docs/SETUP.md`](docs/SETUP.md) (running it locally) · [`ARCHITECTURE.md`](ARCHITECTURE.md) (design and decisions) · [`DEVLOG.md`](DEVLOG.md) (what we built, and why)
