@@ -21,3 +21,7 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 ## Task 3 — Ingestion rules (pure logic)
 - Added prerequisite grouping (AND-of-ORs, `*` = concurrent OK, non-course conditions), slot classification (major/free elective vs fixed), "Take N" seat parsing, default-roadmap choice, section kinds, and the grade-passing rule.
 - TDD: tests failed (module missing), then 8/8 passed. Against the real scraped data the rules find **1,794 swappable roadmap rows**.
+
+## Task 4 — Pathway engine (pure)
+- Added the database-free engine: `models` (Pathway/Slot/Edit/Catalog…), `baseline` (marks passed courses, fills open major-elective seats from the pool, splits "Take N" rows), `validator` (prerequisites incl. later courses, pool/duplicate/units rules, only newly introduced violations block an edit).
+- TDD: tests failed (module missing), then 17/17 passed.
