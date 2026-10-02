@@ -4,12 +4,12 @@ Living document. Updated at every design step; sections cross-reference each oth
 (**Depends on** = look up, **Used by** = look down). Status per section:
 `Approved` · `Proposed` (awaiting sign-off) · `Draft`.
 
-Context: **hackathon project, everything runs on one laptop.** Not distributed. Backend + API only; no frontend yet.
+Context: **hackathon project, everything runs on one laptop.** Not distributed. A Next.js frontend ([§8](#8-frontend)) talks to the API.
 
 **Contents**
 [0 Goal](#0-goal) · [1 Runtime & flows](#1-runtime--request-flows) · [2 Data model](#2-data-model) ·
 [3 Ingestion](#3-ingestion-pipeline) · [4 MCP tools & pathway engine](#4-mcp-tools--pathway-engine) ·
-[5 API surface](#5-api-surface) · [6 Caching](#6-redis-caching) · [7 Security & privacy](#7-security--privacy) ·
+[5 API surface](#5-api-surface) · [6 Caching](#6-redis-caching) · [7 Security & privacy](#7-security--privacy) · [8 Frontend](#8-frontend) ·
 [Decisions](#decision-log) · [Open questions](#open-questions)
 
 ---
@@ -39,7 +39,7 @@ Status: **Approved** (hackathon-local runtime: D3, D4)
 | Transcript extractor | **Google Cloud Run** (stateless; Gemini via Vertex AI) — hackathon requirement | — |
 
 API and MCP share one Python package (DB + domain logic) — no duplicated code. The extractor is a separate small deploy folder.
-`frontend/` is intentionally not created (git cannot track an empty folder).
+`frontend/` holds the Next.js web app ([§8](#8-frontend)).
 
 ### 1.2 Flow A — transcript upload
 `POST /transcripts` (PDF) →
@@ -246,15 +246,19 @@ FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a bearer JWT. Errors share one s
 | `GET /programs/{id}` | — | program details |
 | `GET /programs/{id}/roadmaps` | — | roadmaps; the common one is flagged |
 | `GET /programs/{id}/requirements` | — | degree-requirement sections |
-| `POST /pathways` `{program_id, roadmap_id?, interest?}` | yes | [Flow B](#13-flow-b--pathway). No `interest` ⇒ baseline only. Returns the pathway ([§4.1](#41-data-shapes)): terms and slots, applied edits with reasons, dropped edits with the blocking rule, warnings |
-| `GET /pathways`, `GET /pathways/{id}` | yes | saved pathways |
+| `POST /pathways` `{program_id, roadmap_id?, interest?, fresh?, avoid?}` | yes | [Flow B](#13-flow-b--pathway). No `interest` ⇒ baseline only. Returns the pathway ([§4.1](#41-data-shapes)): terms and slots, applied edits with reasons, dropped edits with the blocking rule, warnings, plus `id` and the raw `interest`. `fresh: true` skips the cache (the UI's Refresh); `avoid` (≤20 codes) tells the model which earlier picks to steer away from |
+| `POST /pathways/baseline` `{program_id, roadmap_id?}` | yes | the deterministic roadmap only: no Gemini, not saved or cached. The UI draws this while personalising runs |
+| `GET /pathways`, `GET /pathways/{id}` | yes | saved pathways; the list items carry `program_title`, `roadmap_name`, `interest`, `swaps`, `created_at` |
+| `GET /pathways/{id}/slots/{slot_id}/options?query=&limit=` | yes | other courses that could take one swappable slot (the same search the model uses, so they already respect the pool, level, units and prerequisites). A blank `query` falls back to the saved interest, then the slot title |
+| `POST /pathways/{id}/swap` `{slot_id, new_course_code}` | yes | the student's own pick for one slot, validated by the same rules as the model's edits; a slot swapped before can be swapped again. 422 `swap_rejected` with the reasons if refused; the saved pathway is updated in place |
+| `GET /courses?codes=A,B` | — | display details (description, prerequisites, attributes) for up to 60 course codes |
 | `GET /health` | — | liveness: Postgres, Redis |
 
 - `POST /pathways` is **synchronous** for the hackathon (a Gemini loop, a few seconds). If it proves slow, it becomes a job with polling later.
 - `POST /pathways` needs saved courses; with none, it still works and treats the student as having passed nothing.
 - **Rate limits** (Redis, [§6](#6-redis-caching)) on `/auth/login`, `/transcripts` and `/pathways`.
 
-Depends on: [§1.2](#12-flow-a--transcript-upload), [§1.3](#13-flow-b--pathway), [§4](#4-mcp-tools--pathway-engine). Used by: the future frontend.
+Depends on: [§1.2](#12-flow-a--transcript-upload), [§1.3](#13-flow-b--pathway), [§4](#4-mcp-tools--pathway-engine). Used by: the frontend ([§8](#8-frontend)).
 
 ## 6. Redis caching
 Status: **Proposed** (D8)
@@ -286,6 +290,19 @@ Status: **Proposed** (hackathon level: demo transcripts only)
 - **Stub warning:** with the stub, nothing is redacted. Fine for demo transcripts; a config flag (`REDACTION_ENABLED`) logs a loud startup warning when it's off, and real student transcripts should not be used until a real redactor is registered.
 - The Cloud Run extractor stores nothing and logs no transcript text ([§1.1](#11-what-runs)). The API calls it with a shared secret in an `X-Api-Key` header (hackathon-level auth; Cloud Run is deployed publicly reachable, the key keeps strangers out).
 
+## 8. Frontend
+Status: **Approved** (built)
+
+`frontend/` is a Next.js 16 (App Router) single page with Tailwind 4 and `motion` for animation, talking to the API with a bearer token kept in `localStorage`. Light theme, SF State purple and gold used as soft tints; serif display type; large radii; no hard blocks.
+
+**Flow:** sign in / create account → transcript → program (and roadmap variant) → interest (skippable) → roadmap. Past roadmaps open from a history sheet; clicking a course card opens a sheet with its description, prerequisites, why it was picked, and other options to swap in. "New interest" re-runs with new text; "Refresh picks" re-runs with `fresh` and `avoid`.
+
+**Streaming boxes** are a client-side staggered reveal, not server streaming: the page first calls `POST /pathways/baseline` and fills the term rows card by card, then saves the real result with `POST /pathways`; when it arrives the AI picks morph in one after another with a sparkle badge. Saved roadmaps skip the show. Long steps (reading the transcript, Gemini personalising) show only a series of rotating words that fit the moment — never a progress bar, and no privacy line.
+
+**Swaps** reuse the validator (`swap_slot`, `reopen_slot`): a student's pick is held to the same slot rule, pool, level, duplicate, unit and prerequisite checks as the model's.
+
+---
+
 ## Decision log
 
 | # | Decision | Why | See |
@@ -305,6 +322,8 @@ Status: **Proposed** (hackathon level: demo transcripts only)
 | D13 | **SFSU transcripts only.** Gemini (the extractor) decides `is_sfsu_transcript`; `false` ⇒ stop. No extractable text (scanned) ⇒ rejected. No transfer-equivalency mapping, no OCR. Locally we only extract and redact | requested | [§1.2](#12-flow-a--transcript-upload) |
 | D14 | Gemini sees only a `session_id` (baseline + passed courses live in Redis); it proposes edits via tools, and the orchestrator re-validates with the engine regardless | keeps user data and rules out of the LLM; validator stays authoritative | [§4.2](#42-mcp-tools), [§4.4](#44-orchestration-post-pathways-flow-b) |
 | D15 | MCP tools are one-module-each and auto-registered; Gemini's callable tools are a config allowlist, so tools can be added freely | requested | [§4.6](#46-adding-tools-later-d15) |
+| D16 | Streaming boxes are a client-side staggered reveal over a baseline preview endpoint; long steps show only rotating words, never progress bars | the full answer arrives at once; requested look | [§8](#8-frontend) |
+| D17 | Student swaps use the same validator as the model, and an already-swapped slot can be swapped again (known limit: a replacement's units become the slot's minimum for later swaps) | one source of truth for the rules | [§5](#5-api-surface), [§8](#8-frontend) |
 
 ## Open questions
 

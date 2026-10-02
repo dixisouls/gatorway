@@ -1,11 +1,11 @@
 # GatorWay
 
-Backend and API that turn an SFSU transcript plus a student's interest into a degree roadmap with interest-matched electives.
+Backend, API and web app that turn an SFSU transcript plus a student's interest into a degree roadmap with interest-matched electives.
 Design: `ARCHITECTURE.md`. Plan: `docs/superpowers/plans/`.
 
 ## Run it (everything on one laptop)
 
-**Quick start:** `scripts/start.sh` starts Postgres, Redis, the MCP server, the extractor and the API (logs in `logs/`, Ctrl-C stops the Python servers). The steps below are what it does.
+**Quick start:** `scripts/start.sh` starts Postgres, Redis, the MCP server, the extractor, the API and the web app, then open http://localhost:3000 (logs in `logs/`, Ctrl-C stops the servers it started). The steps below are what it does.
 
 1. **Services** (Postgres + pgvector, Redis; data kept in named volumes):
    `docker compose up -d`
@@ -18,9 +18,11 @@ Design: `ARCHITECTURE.md`. Plan: `docs/superpowers/plans/`.
 6. **Extractor**: deployed on Cloud Run (see `extractor/`), or locally:
    `cd extractor && ../venv/bin/uvicorn app:create_app --factory --port 8080` and point `EXTRACTOR_URL` at it.
 
+7. **Web app**: `cd frontend && npm install && npm run dev` (http://localhost:3000). It calls the API at `NEXT_PUBLIC_API_URL` (default `http://127.0.0.1:8000`); the API allows the origins in `CORS_ORIGINS`.
+
 ## Tests
 
-`cd backend && ../venv/bin/pytest -q` (needs the Postgres container) and `cd extractor && ../venv/bin/pytest -q`.
+`cd backend && ../venv/bin/pytest -q` (needs the Postgres container), `cd extractor && ../venv/bin/pytest -q`, and for the web app `cd frontend && npm run typecheck && npm run lint && npm test && npm run build`.
 
 ## Manual end-to-end check (real Gemini)
 
