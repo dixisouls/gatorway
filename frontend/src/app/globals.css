@@ -1030,13 +1030,12 @@ p {
   .screen-shimmer::before { animation-duration: 0.01s; }
 }
 
-/* The connector between semesters spans the whole board row; beside a left panel on wide screens it would just sit in the way. */
+/* One arrow under each semester, leading on to the next (see TermArrow in Roadmap.tsx). */
+.term-cell {
+  min-width: 0;
+}
 .term-arrow {
-  grid-column: 1 / -1;
   display: flex;
   justify-content: center;
-  margin: -6px 0;
-}
-@media (min-width: 761px) {
-  .term-arrow--beside { display: none; }
+  margin-top: 4px;
 }
