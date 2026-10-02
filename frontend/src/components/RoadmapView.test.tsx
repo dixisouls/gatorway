@@ -124,3 +124,11 @@ test("swapping a course in the drawer updates the card at once", async () => {
   expect(await screen.findByText("Internet Application Design", { selector: "p" })).toBeInTheDocument();
   expect(swap).toHaveBeenCalledWith(5, "b", "CSC 667");
 });
+
+test("refresh never sends more picks to avoid than the server accepts", async () => {
+  const onRerun = vi.fn();
+  const many = Array.from({ length: 25 }, (_, i) => ({ slot_id: `s${i}`, new_course_code: `X ${i}`, title: "", reason: "" }));
+  render(<RoadmapView spec={spec({ saved: result({ applied: many }) })} onRerun={onRerun} onOpenHistory={noop} />);
+  await userEvent.click(screen.getByRole("button", { name: "Refresh picks" }));
+  expect(onRerun.mock.calls[0][0].avoid).toHaveLength(20);
+});

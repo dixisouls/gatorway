@@ -13,6 +13,8 @@ import { RotatingWords } from "./RotatingWords";
 import { Button } from "./ui/Button";
 import { Sparkle } from "./ui/Sparkle";
 
+const MAX_AVOID = 20; // the server accepts at most this many
+
 export const personalisePhrases = (interest: string) => [
   "Reading your roadmap",
   `Finding electives for “${interest}”`,
@@ -60,7 +62,7 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
 
   function refresh() {
     if (!pathway) return;
-    onRerun({ programId: pathway.program_id, roadmapId: pathway.roadmap_id, interest, fresh: true, avoid: (result?.applied ?? []).map((a) => a.new_course_code) });
+    onRerun({ programId: pathway.program_id, roadmapId: pathway.roadmap_id, interest, fresh: true, avoid: (result?.applied ?? []).map((a) => a.new_course_code).slice(0, MAX_AVOID) });
   }
 
   return (

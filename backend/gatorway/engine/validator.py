@@ -1,7 +1,7 @@
 """Deterministic, authoritative rules. See ARCHITECTURE.md section 4.3."""
 from __future__ import annotations
 
-from .models import Catalog, DroppedEdit, Edit, EditsReport, Pathway, Violation
+from .models import Catalog, CourseInfo, DroppedEdit, Edit, EditsReport, Pathway, Violation
 
 
 def _ordered_terms(pathway: Pathway):
@@ -71,13 +71,17 @@ def edit_violations(pathway: Pathway, edit: Edit, passed: set[str], catalog: Cat
     return out
 
 
-def apply_edit(pathway: Pathway, edit: Edit) -> Pathway:
+def apply_edit(pathway: Pathway, edit: Edit, info: CourseInfo | None = None) -> Pathway:
+    """With `info`, the slot also takes the course's title and units, so cards and term totals show what was actually picked."""
     new = pathway.model_copy(deep=True)
     found = new.find_slot(edit.slot_id)
     assert found is not None
     _, slot = found
     slot.codes = [edit.new_course_code]
     slot.status = "replaced"
+    if info is not None:
+        slot.title = info.title or slot.title
+        slot.units = max(slot.units, info.units_min)  # never below the slot's minimum (edit_violations already guarantees it)
     return new
 
 
@@ -108,7 +112,7 @@ def validate_edits(baseline: Pathway, edits: list[Edit], passed: set[str], catal
         problems = edit_violations(current, edit, passed, catalog)
         trial = None
         if not problems:
-            trial = apply_edit(current, edit)
+            trial = apply_edit(current, edit, catalog.courses.get(edit.new_course_code))
             problems = [v for v in prereq_violations(trial, passed, catalog) if v.key() not in existing]
         if problems:
             dropped.append(DroppedEdit(edit=edit, violations=problems))
