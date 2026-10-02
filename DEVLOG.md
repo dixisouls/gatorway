@@ -119,3 +119,11 @@ Built from `docs/superpowers/plans/2026-10-02-frontend.md`, test-first, one comm
 - **Streaming boxes** are a client-side staggered reveal: baseline cards fill in term by term, then Gemini's picks land one after another. While Gemini works the chip shows rotating words (`personalisePhrases`), never a bar.
 - **Test-environment finds:** Node 25's built-in `localStorage` is unusable in jsdom (the test setup provides an in-memory one); `beforeEach(() => mock.mockReset())` returns the mock and Vitest then calls it as a teardown (use a block body).
 - **Not verified by me:** how it looks and feels (no browser here). Run `scripts/start.sh` and open http://localhost:3000.
+
+## First live review fixes (after the user ran the UI)
+- **Computer Engineering (and ~100 other roadmap rows) had no swappable slots:** titles like "Major Electives" and "Major Upper-Division Electives - Take Two" were not recognised (only singular "Major Elective"). The classifier now matches plural and qualified forms; major-elective seats went 130 → 241. Needs a re-ingest (done; no re-embedding).
+- **Words were invisible while reading the transcript:** the rotating-words box collapsed to zero width inside the centred card and clipped its own text. Fixed with a real width; found by driving the real UI in headless Chrome.
+- **Invalid HTML:** a block element (the rotating words) was inside a `<p>` in the working chip; now a `div`.
+- **Transcript result** is now a structured list grouped by term (course, grade, and a "not in the catalog" tag), not loose chips.
+- **Cards expand in place** (description, prerequisites, attributes, why it was picked, "See other options"); open elective slots still go straight to the options sheet.
+- **Term connectors** are flowing S-curves that alternate sides and draw themselves in, instead of straight arrows.

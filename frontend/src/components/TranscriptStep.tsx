@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { groupByTerm } from "@/lib/format";
 import type { TranscriptSummary } from "@/lib/types";
 import { RotatingWords } from "./RotatingWords";
 import { Button } from "./ui/Button";
@@ -117,25 +118,24 @@ export function TranscriptStep({ onDone, minMs = 1800 }: { onDone: () => void; m
               <h2 className="text-center font-serif text-2xl">
                 We found {summary.count} {summary.count === 1 ? "course" : "courses"}
               </h2>
-              <ul className="mt-6 flex flex-wrap justify-center gap-2">
-                {summary.courses.map((c, i) => (
-                  <motion.li
-                    key={c.code}
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    className={`rounded-full px-3 py-1 text-sm ring-1 ${c.flagged ? "bg-gold-soft text-[#6b5a2a] ring-gold/30" : "bg-purple-soft/70 text-purple ring-purple/10"}`}
-                  >
-                    <span>{c.code}</span>
-                    {c.grade && <span className="ml-1.5 text-xs opacity-70">{c.grade}</span>}
-                  </motion.li>
+              <div className="mt-6 max-h-[26rem] space-y-5 overflow-y-auto pr-1">
+                {groupByTerm(summary.courses).map((g, gi) => (
+                  <motion.div key={g.term} role="group" aria-label={g.term} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: gi * 0.08 }}>
+                    <h3 className="mb-2 px-1 font-serif text-lg text-purple">{g.term}</h3>
+                    <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-white/80 ring-1 ring-line">
+                      {g.courses.map((c) => (
+                        <li key={c.code} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-ink">{c.code}</span>
+                            {c.flagged && <span className="rounded-full bg-gold-soft px-2 py-0.5 text-xs text-[#6b5a2a]">Not in the catalog · won&apos;t count</span>}
+                          </span>
+                          {c.grade && <span className="rounded-full bg-purple-soft/70 px-2.5 py-0.5 text-xs text-purple">{c.grade}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
                 ))}
-              </ul>
-              {summary.flagged.length > 0 && (
-                <p className="mt-5 text-center text-sm text-muted">
-                  {summary.flagged.length} couldn&apos;t be matched to the catalog and won&apos;t be counted: {summary.flagged.join(", ")}.
-                </p>
-              )}
+              </div>
               <div className="mt-8 flex justify-center">
                 <Button onClick={onDone}>Continue</Button>
               </div>

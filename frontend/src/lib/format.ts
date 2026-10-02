@@ -1,4 +1,4 @@
-import type { Slot, Term } from "./types";
+import type { Slot, Term, TranscriptCourse } from "./types";
 
 export const fmtUnits = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
@@ -26,4 +26,23 @@ export function shortRoadmapName(name: string, programTitle: string): string {
   let n = name.startsWith(programTitle) ? name.slice(programTitle.length) : name;
   n = n.replace(/^[\s–—:-]+/, "").replace(/^Roadmap[\s–—:-]*/i, "").trim();
   return n || "Standard roadmap";
+}
+
+const SEASON: Record<string, number> = { winter: 0, spring: 1, summer: 2, fall: 3 };
+
+function termRank(term: string): number {
+  const m = /^(winter|spring|summer|fall)\s+(\d{4})$/i.exec(term.trim());
+  return m ? Number(m[2]) * 10 + SEASON[m[1].toLowerCase()] : Number.POSITIVE_INFINITY;
+}
+
+/** Transcript courses grouped by term, oldest first; courses with no term go last under "Other". */
+export function groupByTerm(courses: TranscriptCourse[]): { term: string; courses: TranscriptCourse[] }[] {
+  const groups = new Map<string, TranscriptCourse[]>();
+  for (const c of courses) {
+    const key = c.term?.trim() || "Other";
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  return [...groups.entries()]
+    .map(([term, list]) => ({ term, courses: list }))
+    .sort((a, b) => termRank(a.term) - termRank(b.term) || a.term.localeCompare(b.term));
 }

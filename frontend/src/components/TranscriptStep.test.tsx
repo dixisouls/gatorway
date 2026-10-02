@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError } from "@/lib/api";
 import { EXTRACT_PHRASES, TranscriptStep } from "@/components/TranscriptStep";
@@ -29,8 +29,10 @@ test("reads the transcript, lists the courses found and continues", async () => 
   render(<TranscriptStep onDone={onDone} minMs={0} />);
   await user().upload(screen.getByLabelText("Transcript PDF"), pdf());
   expect(await screen.findByText("We found 2 courses")).toBeInTheDocument();
-  expect(screen.getByText("CSC 101")).toBeInTheDocument();
-  expect(screen.getByText(/1 couldn.t be matched/i)).toBeInTheDocument();
+  const term = screen.getByRole("group", { name: "Fall 2023" }); // courses are listed under their term, not as loose chips
+  expect(within(term).getByText("CSC 101")).toBeInTheDocument();
+  expect(within(term).getByText("A-")).toBeInTheDocument();
+  expect(within(term).getByText(/not in the catalog/i)).toBeInTheDocument(); // ENGL 114 was flagged
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(onDone).toHaveBeenCalled();
 });

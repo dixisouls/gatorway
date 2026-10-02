@@ -119,7 +119,8 @@ test("swapping a course in the drawer updates the card at once", async () => {
   });
   swap.mockResolvedValue(swapped);
   render(<RoadmapView spec={spec({ saved: result() })} onRerun={noop} onOpenHistory={noop} />);
-  await userEvent.click(screen.getByRole("button", { name: /Drawing/ }));
+  await userEvent.click(screen.getByRole("button", { name: /Drawing/ })); // the card expands in place
+  await userEvent.click(await screen.findByRole("button", { name: "See other options" })); // then the options sheet
   await userEvent.click(await screen.findByRole("button", { name: "Use CSC 667" }));
   expect(await screen.findByText("Internet Application Design", { selector: "p" })).toBeInTheDocument();
   expect(swap).toHaveBeenCalledWith(5, "b", "CSC 667");
@@ -131,4 +132,11 @@ test("refresh never sends more picks to avoid than the server accepts", async ()
   render(<RoadmapView spec={spec({ saved: result({ applied: many }) })} onRerun={onRerun} onOpenHistory={noop} />);
   await userEvent.click(screen.getByRole("button", { name: "Refresh picks" }));
   expect(onRerun.mock.calls[0][0].avoid).toHaveLength(20);
+});
+
+test("the working chip is valid HTML (no block inside a paragraph)", async () => {
+  createPathway.mockReturnValue(new Promise(() => {})); // stays personalising
+  const { container } = render(<RoadmapView spec={spec()} onRerun={noop} onOpenHistory={noop} />);
+  await screen.findByText(`${personalisePhrases("drawing")[0]}…`);
+  expect(container.querySelectorAll("p div, p section, p article")).toHaveLength(0);
 });

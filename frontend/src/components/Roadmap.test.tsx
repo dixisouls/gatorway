@@ -46,14 +46,16 @@ test("only electives still being decided look busy while the AI works", () => {
   render(
     <Roadmap {...props} pathway={{ ...pathway, terms: [{ position: 0, label: "First Semester", slots: [slot({ slot_id: "a" }), planned] }] }} generating isRevealed={() => false} />,
   );
-  const busy = screen.getAllByRole("button").filter((b) => b.getAttribute("aria-busy") === "true");
+  const busy = screen.getAllByRole("article").filter((b) => b.getAttribute("aria-busy") === "true");
   expect(busy).toHaveLength(1);
   expect(within(busy[0]).getByText("University Elective")).toBeInTheDocument();
 });
 
-test("clicking a card hands its slot to the caller", async () => {
+test("clicking an open elective slot hands it to the caller for its options", async () => {
   const onOpen = vi.fn();
-  render(<Roadmap {...props} onOpen={onOpen} isRevealed={() => true} />);
-  await userEvent.click(screen.getByRole("button", { name: /Data Structures/ }));
-  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ slot_id: "c" }));
+  const openSlot = slot({ slot_id: "o", codes: [], title: "Major Elective (6 Units Total)", slot_kind: "major_elective", swappable: true });
+  const withOpen = { ...pathway, terms: [{ position: 0, label: "First Semester", slots: [openSlot] }] };
+  render(<Roadmap {...props} pathway={withOpen} baselineSlots={{}} onOpen={onOpen} isRevealed={() => true} />);
+  await userEvent.click(screen.getByRole("button", { name: /Major Elective/ }));
+  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ slot_id: "o" }));
 });

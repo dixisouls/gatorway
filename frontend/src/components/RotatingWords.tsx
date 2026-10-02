@@ -16,7 +16,7 @@ export function useRotatingIndex(length: number, intervalMs: number): number {
 export function RotatingWords({ phrases, intervalMs = 1900, compact = false }: { phrases: string[]; intervalMs?: number; compact?: boolean }) {
   const i = useRotatingIndex(phrases.length, intervalMs);
   return (
-    <div className={compact ? "relative h-5 w-64 overflow-hidden text-left" : "relative h-8 overflow-hidden text-center"} aria-live="polite">
+    <div className={compact ? "relative h-5 w-64 overflow-hidden text-left" : "relative h-8 w-full overflow-hidden text-center"} aria-live="polite">
       <AnimatePresence mode="wait">
         <motion.span
           key={i}

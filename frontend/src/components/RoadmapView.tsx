@@ -126,7 +126,7 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
 
       <AnimatePresence>
         {personalising && (
-          <motion.p
+          <motion.div
             key="working"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -134,7 +134,7 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
             className="mb-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-soft to-purple-soft px-4 py-2 text-sm text-ink ring-1 ring-gold/30"
           >
             <Sparkle size={15} spin /> <RotatingWords compact phrases={personalisePhrases(spec.interest ?? "")} />
-          </motion.p>
+          </motion.div>
         )}
       </AnimatePresence>
 
