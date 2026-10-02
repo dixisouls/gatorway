@@ -36,7 +36,7 @@ def classify_slot(codes: list[str], title: str, tags: list[str], has_elective_po
         return SlotClass("fixed", False, major)
     if "university elective" in t:
         return SlotClass("free_elective", True, False)
-    if "major elective" in t and has_elective_pool:
+    if has_elective_pool and re.search(r"\bmajor\b.*\belectives?\b|^\s*upper[- ]division electives?\b", t):  # "Major Electives", "Major Upper-Division Electives - Take Two", ...
         return SlotClass("major_elective", True, True)
     return SlotClass("fixed", False, major)
 

@@ -87,3 +87,11 @@ def test_course_counts_toward_major_when_it_is_in_the_programs_requirement_secti
     assert in_reqs.counts_toward_major is True and in_reqs.slot_kind == "fixed" and in_reqs.swappable is False
     assert classify_slot(["CSC 101"], "Intro", ["Core Computer Science Requirement"], True, major_codes=set()).counts_toward_major is False
     assert classify_slot(["ART 100"], "Art", ["GE 3"], True, major_codes={"CSC 101"}).counts_toward_major is False
+
+
+def test_plural_and_qualified_major_elective_rows_are_swappable_too():
+    for title in ("Major Electives", "Major Upper-Division Electives - Take Two", "Major Concentration Elective", "Major Approved Elective", "Upper-Division Electives"):
+        assert classify_slot([], title, [], True).slot_kind == "major_elective", title
+    assert classify_slot([], "Major Electives", [], False).swappable is False  # still needs a pool of allowed courses
+    for title in ("Select One (Major Core):", "Concentration Elective", "Graduate Elective", "GE Area 3: Arts and Humanities"):
+        assert classify_slot([], title, [], True).swappable is False, title
