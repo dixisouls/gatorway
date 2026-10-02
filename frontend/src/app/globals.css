@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #faf8f4;
+  --ink: #1c1741;
+  --muted: #6e6a88;
+  --purple: #231161;
+  --purple-soft: #ece8f8;
+  --gold: #b29d6c;
+  --gold-soft: #f4edda;
+  --line: rgb(35 17 97 / 0.09);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-purple: var(--purple);
+  --color-purple-soft: var(--purple-soft);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-line: var(--line);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-fraunces);
+  --shadow-soft: 0 1px 2px rgb(35 17 97 / 0.04), 0 12px 32px -12px rgb(35 17 97 / 0.14);
+  --animate-drift: drift 24s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+
+  @keyframes drift {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(4%, 6%, 0) scale(1.08); }
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drift,
+  .animate-shimmer {
+    animation: none;
+  }
+}
