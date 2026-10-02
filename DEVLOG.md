@@ -78,3 +78,9 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 ## Task 14 — Programs and pathways routes
 - Added public `GET /programs` (search/filter/paginate), `/programs/{id}`, `/roadmaps`, `/requirements`, and authenticated `POST /pathways`, `GET /pathways`, `GET /pathways/{id}` (private to the owner, 20 requests/hour). Pathway results are snapshotted in the database.
 - TDD: 15 tests failed (routes missing), then 15/15 passed on the first implementation run. They go through the **real MCP server in memory** (the only fake is the Gemini stand-in): baseline-only without calling Gemini, an interest swapping a free elective and being saved/listed, passed courses marked, an edit that would skip a prerequisite dropped, unknown program / foreign roadmap / program with no roadmap → 404, private pathways, rate limit, over-long interest → 422, Redis down → baseline with a note, no swappable slots → says so.
+
+## Task 15 — Cloud Run extractor service
+- Added `extractor/` (own folder): `POST /extract` (redacted text → `is_sfsu_transcript` + courses, via Gemini structured output; shared-secret header; 401/422/413 guards; stateless, logs no transcript text) + `GET /health`, `Dockerfile`, requirements, tests.
+- TDD: tests failed (module missing), then 2/2 passed (fake Gemini client).
+- **Real checks:** the service starts locally and answers `/health`; **I built the Docker image and ran it** — container `/health` ok (image and container removed afterwards, nothing left behind).
+- **Not done (needs you):** deploying to Cloud Run (billable GCP project, `gcloud` commands are in the plan, Task 15 Step 8) and a real Gemini extraction (no `GEMINI_API_KEY` in this environment).
