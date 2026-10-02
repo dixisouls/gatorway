@@ -16,3 +16,9 @@ def test_gemini_tool_allowlist_is_parsed_from_a_comma_list(monkeypatch):
 def test_env_overrides_defaults(monkeypatch):
     monkeypatch.setenv("REDIS_URL", "redis://example:1/2")
     assert Settings(_env_file=None).redis_url == "redis://example:1/2"
+
+
+def test_embed_provider_defaults_to_gemini_and_can_be_switched_to_offline(monkeypatch):
+    assert Settings(_env_file=None).embed_provider == "gemini"
+    monkeypatch.setenv("EMBED_PROVIDER", "hashing")
+    assert Settings(_env_file=None).embed_provider == "hashing"

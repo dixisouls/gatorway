@@ -30,7 +30,7 @@ def run(scrape_dir: str, embeddings: str = "gemini", engine=None) -> tuple[Inges
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gatorway.ingest")
     ap.add_argument("--scrape-dir", default=get_settings().scrape_dir)
-    ap.add_argument("--embeddings", choices=["gemini", "hashing", "none"], default="gemini")
+    ap.add_argument("--embeddings", choices=["gemini", "hashing", "none"], default=get_settings().embed_provider)
     args = ap.parse_args(argv)
     report, embedded = run(args.scrape_dir, args.embeddings)
     print(f"courses={report.courses} programs={report.programs} sections={report.sections} roadmaps={report.roadmaps} slots={report.slots}")

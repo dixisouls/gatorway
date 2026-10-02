@@ -84,3 +84,9 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 - TDD: tests failed (module missing), then 2/2 passed (fake Gemini client).
 - **Real checks:** the service starts locally and answers `/health`; **I built the Docker image and ran it** — container `/health` ok (image and container removed afterwards, nothing left behind).
 - **Not done (needs you):** deploying to Cloud Run (billable GCP project, `gcloud` commands are in the plan, Task 15 Step 8) and a real Gemini extraction (no `GEMINI_API_KEY` in this environment).
+
+## Task 16 — Runbook, smoke script, final verification
+- Replaced `README.md` with run instructions; added `scripts/smoke_e2e.py` (signup → transcript upload → pathway against the running stack with real Gemini).
+- Added an `EMBED_PROVIDER` setting (default `gemini`; `hashing` = offline) so the MCP server embeds search queries the same way the stored vectors were made. Test-first (failed with AttributeError, then passed).
+- **Real stack run (me, no Gemini key):** started the MCP server over HTTP and the API against your Postgres + Redis. `/health` all ok; real signup; real CS B.S. baseline via API → MCP: 8 terms, 37 slots, 7 swappable; a personalised request degraded to the baseline with the note "interest could not be interpreted"; the saved-pathway list worked. Servers stopped and test user/Redis keys removed.
+- **Still needs you / a key:** `GEMINI_API_KEY` for (1) real semantic embeddings (`python -m gatorway.ingest --embeddings gemini`), (2) the real Gemini edit loop, (3) the Cloud Run extractor's transcript reading; Cloud Run deployment itself (`gcloud` commands in the plan, Task 15 Step 8). Then run `venv/bin/python scripts/smoke_e2e.py`.

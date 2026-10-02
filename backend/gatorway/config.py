@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     embed_model: str = "gemini-embedding-001"
     embed_dim: int = 768
+    embed_provider: str = "gemini"  # "hashing" = offline stand-in; must match how the stored course vectors were made
 
     jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"
     jwt_ttl_minutes: int = 1440

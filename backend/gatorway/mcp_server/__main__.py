@@ -29,7 +29,7 @@ def main() -> None:
     deps = Deps(
         db=session,
         cache=Cache(redis.Redis.from_url(settings.redis_url, decode_responses=True)),
-        embedder=build_embedder("gemini", settings),
+        embedder=build_embedder(settings.embed_provider, settings),
         embed_model=settings.embed_model,
     )
     create_server(deps).run(transport="http", host="127.0.0.1", port=8001)
