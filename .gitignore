@@ -45,3 +45,4 @@ scraping/*
 
 # Plan-execution scratch (ledger, briefs, review packages)
 .superpowers/
+logs/

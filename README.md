@@ -5,6 +5,8 @@ Design: `ARCHITECTURE.md`. Plan: `docs/superpowers/plans/`.
 
 ## Run it (everything on one laptop)
 
+**Quick start:** `scripts/start.sh` starts Postgres, Redis, the MCP server, the extractor and the API (logs in `logs/`, Ctrl-C stops the Python servers). The steps below are what it does.
+
 1. **Services** (Postgres + pgvector, Redis; data kept in named volumes):
    `docker compose up -d`
 2. **Python env** (once): `venv/bin/pip install -e "backend[dev]"`; copy `.env.example` to `.env` and set `GOOGLE_CLOUD_PROJECT` (Gemini uses your gcloud ADC login, or set `GEMINI_API_KEY` instead) and a strong `JWT_SECRET`.
