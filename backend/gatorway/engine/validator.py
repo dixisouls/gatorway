@@ -129,3 +129,8 @@ def reopen_slot(pathway: Pathway, slot_id: str) -> Pathway:
     if found is not None and found[1].status == "replaced":
         found[1].status = "planned"
     return new
+
+
+def swap_slot(pathway: Pathway, slot_id: str, code: str, passed: set[str], catalog: Catalog) -> EditsReport:
+    """The student's own choice for one slot: the same rules as the model's edits, and a slot swapped before can be changed again."""
+    return validate_edits(reopen_slot(pathway, slot_id), [Edit(slot_id=slot_id, new_course_code=code, reason="Your choice")], passed, catalog)

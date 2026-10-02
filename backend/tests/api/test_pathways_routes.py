@@ -293,3 +293,77 @@ def test_slot_options_refuse_fixed_slots_unknown_slots_and_other_users(world):
     other, _ = headers(client, "other@sfsu.edu")
     assert client.get(f"{base}/{fixed['slot_id']}/options", headers=other).status_code == 404
     assert client.get("/pathways/99999/slots/x/options", headers=h).status_code == 404
+
+
+def _swap(client, h, saved, slot_id, code):
+    return client.post(f"/pathways/{saved['id']}/swap", json={"slot_id": slot_id, "new_course_code": code}, headers=h)
+
+
+def test_student_can_swap_a_slot_and_it_is_saved(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    r = _swap(client, h, saved, free["slot_id"], "ART 101")
+    assert r.status_code == 200
+    body = r.json()
+    swapped = next(s for s in slots(body) if s["slot_id"] == free["slot_id"])
+    assert swapped["codes"] == ["ART 101"] and swapped["status"] == "replaced"
+    assert [(a["slot_id"], a["new_course_code"], a["reason"]) for a in body["applied"]] == [(free["slot_id"], "ART 101", "Your choice")]
+    again = client.get(f"/pathways/{saved['id']}", headers=h).json()
+    assert next(s for s in slots(again) if s["slot_id"] == free["slot_id"])["codes"] == ["ART 101"]
+
+
+def test_a_slot_that_was_swapped_before_can_be_swapped_again(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()  # the model picks ART 101
+    free = next(s for s in slots(saved) if s["status"] == "replaced")
+    assert free["codes"] == ["ART 101"]
+    r = _swap(client, h, saved, free["slot_id"], "CSC 600")
+    assert r.status_code == 200
+    body = r.json()
+    assert next(s for s in slots(body) if s["slot_id"] == free["slot_id"])["codes"] == ["CSC 600"]
+    assert [a["new_course_code"] for a in body["applied"]] == ["CSC 600"]  # one entry per slot, the latest
+
+
+def test_a_swap_the_validator_refuses_is_a_422_and_changes_nothing(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    fixed = next(s for s in slots(saved) if not s["swappable"])
+    for slot_id, code, fragment in [(free["slot_id"], "CSC 850", "graduate"), (free["slot_id"], "NOPE 1", "not in the catalog"),
+                                    (fixed["slot_id"], "ART 101", "not swappable"), (free["slot_id"], "CSC 600", "needs csc 220 before")]:
+        r = _swap(client, h, saved, slot_id, code)
+        assert r.status_code == 422 and r.json()["error"]["code"] == "swap_rejected", (code, r.text)
+        assert fragment in r.json()["error"]["message"].lower(), (code, r.text)
+        assert r.json()["error"]["details"]
+    untouched = client.get(f"/pathways/{saved['id']}", headers=h).json()
+    assert all(s["status"] != "replaced" for s in slots(untouched))
+
+
+def test_swaps_are_private_to_the_owner_and_need_login(world):
+    build, pid, _ = world
+    client, _ = build()
+    mine, _ = headers(client, "a@sfsu.edu")
+    theirs, _ = headers(client, "b@sfsu.edu")
+    saved = client.post("/pathways", json={"program_id": pid}, headers=mine).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    assert _swap(client, theirs, saved, free["slot_id"], "ART 101").status_code == 404
+    assert client.post(f"/pathways/{saved['id']}/swap", json={"slot_id": "x", "new_course_code": "ART 101"}).status_code == 401
+
+
+def test_pathway_responses_carry_the_raw_interest(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    made = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()
+    assert made["interest"] == "I like drawing"
+    assert client.get(f"/pathways/{made['id']}", headers=h).json()["interest"] == "I like drawing"
+    assert client.post("/pathways", json={"program_id": pid}, headers=h).json()["interest"] is None

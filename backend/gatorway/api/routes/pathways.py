@@ -6,8 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from gatorway.db.models import SavedPathway, User
-from gatorway.engine.repository import data_version, user_passed_codes
-from gatorway.llm.orchestrator import PathwayResult, ServiceError
+from gatorway.engine.repository import data_version, get_catalog, user_passed_codes
+from gatorway.engine.validator import swap_slot
+from gatorway.llm.orchestrator import AppliedEdit, PathwayResult, ServiceError
 
 from ..deps import current_user, get_db, get_state, user_rate_limit
 from ..errors import ApiError
@@ -70,13 +71,17 @@ async def create_pathway(body: PathwayRequest, user: User = Depends(current_user
                          interest_raw=body.interest, intent=payload["intent"], result=payload)
     db.add(saved)
     db.commit()
-    return {"id": saved.id, **payload}
+    return _saved_payload(saved)
 
 
 @router.get("")
 def list_pathways(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(SavedPathway).where(SavedPathway.user_id == user.id).order_by(SavedPathway.id.desc())).all()
     return {"pathways": [{"id": r.id, "program_id": r.program_id, "interest": r.interest_raw, "created_at": r.created_at.isoformat()} for r in rows]}
+
+
+def _saved_payload(row: SavedPathway) -> dict:
+    return {"id": row.id, "interest": row.interest_raw, **row.result}
 
 
 def _owned(db: Session, user: User, pathway_id: int) -> SavedPathway:
@@ -89,7 +94,7 @@ def _owned(db: Session, user: User, pathway_id: int) -> SavedPathway:
 @router.get("/{pathway_id}")
 def get_pathway(pathway_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = _owned(db, user, pathway_id)
-    return {"id": row.id, **row.result}
+    return _saved_payload(row)
 
 
 @router.get("/{pathway_id}/slots/{slot_id}/options", dependencies=[Depends(user_rate_limit("options", 120, 3600))])
@@ -114,3 +119,29 @@ async def slot_options(
     except ServiceError as e:
         raise _service_error(e)
     return {"slot_id": slot_id, "query": text, "candidates": candidates}
+
+
+class SwapRequest(BaseModel):
+    slot_id: str = Field(max_length=64)
+    new_course_code: str = Field(max_length=32)
+
+
+@router.post("/{pathway_id}/swap", dependencies=[Depends(user_rate_limit("swap", 120, 3600))])
+def swap_course(pathway_id: int, body: SwapRequest, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    row = _owned(db, user, pathway_id)
+    result = PathwayResult.model_validate(row.result)
+    code = body.new_course_code.strip()
+    catalog = get_catalog(db)
+    report = swap_slot(result.pathway, body.slot_id, code, set(user_passed_codes(db, user.id)), catalog)
+    if report.dropped:
+        violations = report.dropped[0].violations
+        raise ApiError(422, "swap_rejected", "; ".join(v.message for v in violations), details=[v.model_dump() for v in violations])
+    applied = [a for a in result.applied if a.slot_id != body.slot_id]
+    applied.append(AppliedEdit(slot_id=body.slot_id, new_course_code=code, title=catalog.courses[code].title, reason="Your choice"))
+    updated = result.model_copy(update={
+        "pathway": report.pathway, "applied": applied, "warnings": report.warnings, "cached": False,
+        "dropped": [d for d in result.dropped if d.edit.slot_id != body.slot_id],
+    })
+    row.result = updated.model_dump(mode="json")  # a new dict, so the JSON column is seen as changed
+    db.commit()
+    return _saved_payload(row)
