@@ -138,6 +138,9 @@ test("Firebase error codes become friendly messages", () => {
   expect(friendlyAuthError({ code: "auth/weak-password" })).toMatch(/stronger password/);
   expect(friendlyAuthError({ code: "auth/too-many-requests" })).toMatch(/Too many attempts/);
   expect(friendlyAuthError({ code: "auth/network-request-failed" })).toMatch(/can't reach/i);
+  for (const code of ["auth/configuration-not-found", "auth/operation-not-allowed"]) {
+    expect(friendlyAuthError({ code })).toMatch(/Email\/Password.*Firebase|Firebase.*Email\/Password/); // a setup problem, said so plainly
+  }
   expect(friendlyAuthError(new Error("Firebase is not configured."))).toBe("Firebase is not configured.");
   expect(friendlyAuthError("???")).toMatch(/Something went wrong/);
 });

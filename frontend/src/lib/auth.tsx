@@ -34,6 +34,9 @@ export function friendlyAuthError(e: unknown): string {
       return "That email address doesn't look right.";
     case "auth/too-many-requests":
       return "Too many attempts. Please wait a moment and try again.";
+    case "auth/configuration-not-found":
+    case "auth/operation-not-allowed":
+      return "Sign-in isn't switched on for this project yet. In the Firebase console, open Authentication → Sign-in method and enable Email/Password.";
     case "auth/network-request-failed":
       return "We can't reach the sign-in service. Check your connection and try again.";
   }
