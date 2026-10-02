@@ -49,7 +49,7 @@ function TermArrow() {
   const view = { once: true, margin: "-40px" } as const;
   return (
     <div data-testid="term-arrow" aria-hidden="true" className="term-arrow">
-      <svg viewBox="0 0 320 96" fill="none" className="h-20 w-full max-w-xs overflow-visible" style={arrow.flip ? { transform: "scaleX(-1)" } : undefined}>
+      <svg viewBox="0 0 320 96" fill="none" className="h-20 w-full max-w-sm overflow-visible" style={arrow.flip ? { transform: "scaleX(-1)" } : undefined}>
         <defs>
           <linearGradient id={`${id}-g`} x1="0" y1="0" x2="320" y2="0" gradientUnits="userSpaceOnUse">
             <stop stopColor="#b29d6c" />
@@ -87,18 +87,18 @@ export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generatin
             <div className="flex items-center gap-3"><span className="semester-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><h3 className="text-ink">{term.label}</h3></div>
             <span className="text-xs text-muted">{fmtUnits(termUnits(term))} units</span>
           </div>
-          <div className="grid items-start gap-2">
+          <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {groupChoices(term.slots).map((item) => {
               if (item.kind === "choice") {
                 const chosen = choices[item.header.slot_id] ?? item.options.find((o) => o.status === "passed")?.codes[0];
                 return (
-                  <div key={item.header.slot_id} className="rounded-sm border border-dashed border-ink/20 bg-white/20 p-3">
+                  <div key={item.header.slot_id} className="rounded-sm border border-dashed border-ink/20 bg-white/20 p-3 sm:col-span-2 lg:col-span-3">
                     <div className="mb-1 flex items-baseline justify-between px-1">
                       <p className="text-xs font-medium uppercase tracking-wider text-muted">Choose one</p>
                       <span className="text-sm text-muted">{fmtUnits(item.header.units)} units</span>
                     </div>
                     <h4 className="mb-3 px-1 font-serif text-lg text-ink">{item.header.title.replace(/:\s*$/, "")}</h4>
-                    <div className="grid items-start gap-2">
+                    <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {item.options.map((o) => (
                         <CourseCard
                           key={o.slot_id}

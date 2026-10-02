@@ -647,7 +647,7 @@ p {
 }
 .semester-board {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr); /* one semester per row, an arrow between each */
   align-items: start;
   gap: 20px;
 }
