@@ -38,3 +38,8 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
   2. 16 roadmap rows had a course code but a null title → fall back to the codes.
 - Test fixtures now rebuild the test schema each session. I dropped and recreated the (empty, verified) dev schema once.
 - **Real ingest result (matches the spec's "done means"):** 4,995 courses, 378 programs, 1,828 requirement sections, 364 roadmaps, 12,757 slots (10,963 fixed / 1,664 free-elective / 130 major-elective), 4,986 courses embedded. Second run embedded 0 and changed nothing. 249 programs have no elective list (their major-elective slots stay fixed, as designed). Embeddings are the offline hashing stand-in; re-run with `--embeddings gemini` (needs `GEMINI_API_KEY`) for real semantic search.
+
+## Task 7 — Repository and shared queries
+- Added `engine/repository.py` (catalog cached per `data_version`, roadmap choice, per-seat skeleton, `build_baseline_for`, `user_passed_codes`) and `catalog_queries.py` (program/roadmap/requirement reads shared by the API and MCP tools).
+- TDD: tests failed (module missing), then 7/7 passed.
+- Real-data check: Computer Science B.S. baseline = 8 terms, 37 slots, 7 swappable (5 major-elective seats = the 15 elective units, plus 2 free electives); passed courses are marked.
