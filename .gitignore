@@ -42,3 +42,7 @@ scraping/*
 .vscode/
 .DS_Store
 *.log
+
+# Plan-execution scratch (ledger, briefs, review packages)
+.superpowers/
+logs/

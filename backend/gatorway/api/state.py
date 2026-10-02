@@ -1,0 +1,80 @@
+"""Everything a request handler needs, built once at startup (and swapped for fakes in tests)."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import redis
+from fastmcp import Client
+from sqlalchemy import Engine
+from sqlalchemy.orm import Session
+
+from gatorway.cache.store import Cache, RateLimiter
+from gatorway.config import Settings, get_settings
+from gatorway.db.session import get_engine
+from gatorway.engine.models import Catalog
+from gatorway.engine.repository import get_catalog
+from gatorway.llm.client import gemini_configured, make_genai_client
+from gatorway.llm.gemini import GeminiLlm
+from gatorway.llm.orchestrator import PathwayService
+from gatorway.transcripts.extractor_client import ExtractorClient, HttpExtractor
+from gatorway.transcripts.redact import Redactor, StubRedactor
+
+
+@dataclass
+class AppState:
+    settings: Settings
+    engine: Engine
+    redis: redis.Redis
+    cache: Cache
+    limiter: RateLimiter
+    redactor: Redactor
+    extractor: ExtractorClient | None = None
+    pathway_service: PathwayService | None = None
+
+
+class UnavailableLlm:
+    """Used when no Gemini credentials are configured. The orchestrator degrades to the baseline roadmap with a note."""
+
+    async def parse_intent(self, interest: str):
+        raise RuntimeError("Gemini is not configured")
+
+    async def propose_edits(self, *args, **kwargs):
+        raise RuntimeError("Gemini is not configured")
+
+
+PLACEHOLDER_SECRETS = {"dev-only-secret-change-me-0123456789abcdef", "change-me-to-a-long-random-string-0123456789"}
+
+
+def check_secrets(settings: Settings) -> None:
+    """Refuse to start with a JWT secret anyone could guess (the defaults are in the public repo)."""
+    if settings.jwt_secret in PLACEHOLDER_SECRETS or len(settings.jwt_secret) < 32:
+        raise RuntimeError(
+            "JWT_SECRET is missing, a placeholder, or shorter than 32 characters. Set a long random value in .env, e.g. "
+            "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
+
+
+def build_state(settings: Settings | None = None) -> AppState:
+    settings = settings or get_settings()
+    check_secrets(settings)
+    engine = get_engine()
+    r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    cache = Cache(r)
+    if gemini_configured(settings):
+        llm = GeminiLlm(make_genai_client(settings), settings.gemini_model, settings.gemini_thinking_level)
+    else:
+        llm = UnavailableLlm()
+
+    def catalog() -> Catalog:
+        with Session(engine) as db:
+            return get_catalog(db)
+
+    service = PathwayService(
+        llm=llm, cache=cache, catalog_provider=catalog, mcp_factory=lambda: Client(settings.mcp_url),
+        allowed_tools=settings.gemini_tool_set, model_name=settings.gemini_model,
+        edit_timeout_s=settings.edit_timeout_s,
+    )
+    return AppState(
+        settings=settings, engine=engine, redis=r, cache=cache, limiter=RateLimiter(r), redactor=StubRedactor(),
+        extractor=HttpExtractor(settings.extractor_url, settings.extractor_api_key), pathway_service=service,
+    )

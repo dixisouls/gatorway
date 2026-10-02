@@ -1,0 +1,56 @@
+[
+  {
+    "title": "Bachelor of Science in Mini Computer Science",
+    "college": "Science and Engineering", "college_slug": "science-engineering",
+    "department": "Computer Science", "department_slug": "computer-science",
+    "slug": "bs-mini-computer-science", "degree_type": "B.S.", "level": "undergraduate", "concentration": null,
+    "source_url": "https://bulletin.sfsu.edu/colleges/science-engineering/computer-science/bs-mini-computer-science/",
+    "requirements": {
+      "heading": "Mini Computer Science (B.S.)", "total_units_raw": "21 units", "total_units": 21, "has_course_tables": true,
+      "sections": [
+        {"heading": null, "level": 0, "units_raw": null, "notes": ["Grades of C or better are required."], "rows": []},
+        {"heading": "Core Requirements", "level": 3, "units_raw": "10 units", "notes": [],
+         "rows": [
+           {"type": "course", "codes": ["CSC 101"], "or_with_previous": false, "title": "Introduction to Computing", "units_raw": "3", "units_min": 3, "units_max": 3},
+           {"type": "course", "codes": ["CSC 215"], "or_with_previous": false, "title": "Intermediate Programming", "units_raw": "4", "units_min": 4, "units_max": 4},
+           {"type": "course", "codes": ["CSC 220"], "or_with_previous": false, "title": "Data Structures", "units_raw": "3", "units_min": 3, "units_max": 3}]},
+        {"heading": "Electives", "level": 3, "units_raw": "6 units", "notes": ["Choose two."],
+         "rows": [
+           {"type": "course", "codes": ["CSC 600"], "or_with_previous": false, "title": "Web Application Development", "units_raw": "3", "units_min": 3, "units_max": 3},
+           {"type": "course", "codes": ["CSC 601"], "or_with_previous": false, "title": "Database Systems", "units_raw": "3", "units_min": 3, "units_max": 3},
+           {"type": "course", "codes": ["XYZ 999"], "or_with_previous": false, "title": "A course missing from the catalog", "units_raw": "3", "units_min": 3, "units_max": 3},
+           {"type": "text", "text": "Any other approved 600-level course", "units_raw": null, "units_min": null, "units_max": null}]}
+      ],
+      "course_codes": ["CSC 101", "CSC 215", "CSC 220", "CSC 600", "CSC 601", "XYZ 999"]
+    },
+    "roadmaps": [
+      {"name": "Mini CS ADT Roadmap", "source_url": "https://bulletin.sfsu.edu/colleges/science-engineering/computer-science/bs-mini-computer-science/adt-roadmap/",
+       "content": {"total_units_required": 120, "major_units": 21, "notes": [], "grids": [{"caption": "Plan of Study Grid", "terms": [
+         {"year": null, "term": "First Semester", "units_total": "3", "items": [
+           {"codes": ["CSC 101"], "title": "Introduction to Computing", "tags": ["Major Core"], "units_raw": "3", "units_min": 3, "units_max": 3}]}]}]}},
+      {"name": "Mini CS Roadmap - QR Pathway 1/2", "source_url": "https://bulletin.sfsu.edu/colleges/science-engineering/computer-science/bs-mini-computer-science/roadmap-i-ii-eng/",
+       "content": {"total_units_required": 120, "major_units": 21, "notes": [], "grids": [{"caption": "Plan of Study Grid", "terms": [
+         {"year": null, "term": "First Semester", "units_total": "3", "items": [
+           {"codes": ["CSC 101"], "title": "Introduction to Computing", "tags": ["Major Core"], "units_raw": "3", "units_min": 3, "units_max": 3},
+           {"codes": [], "title": "Major Elective (6 Units Total) - Take Two", "tags": [], "footnotes": ["1"], "units_raw": "6", "units_min": 6, "units_max": 6}]},
+         {"year": null, "term": "Second Semester", "units_total": "10", "items": [
+           {"codes": ["CSC 215"], "title": "Intermediate Programming", "tags": ["Major Core"], "units_raw": "4", "units_min": 4, "units_max": 4},
+           {"codes": [], "title": "SF State Studies or University Elective", "tags": [], "units_raw": "3", "units_min": 3, "units_max": 3},
+           {"codes": [], "title": "GE Area 4: Social and Behavioral Sciences", "tags": [], "units_raw": "3", "units_min": 3, "units_max": 3}]},
+         {"year": null, "term": "Third Semester", "units_total": "3", "items": [
+           {"codes": ["CSC 220"], "title": "Data Structures", "tags": ["Major Core"], "units_raw": "3", "units_min": 3, "units_max": 3}]}]}]}}
+    ]
+  },
+  {
+    "title": "Minor in Mini Computing",
+    "college": "Science and Engineering", "college_slug": "science-engineering",
+    "department": "Computer Science", "department_slug": "computer-science",
+    "slug": "minor-mini-computing", "degree_type": "Minor", "level": "minor", "concentration": null,
+    "source_url": "https://bulletin.sfsu.edu/colleges/science-engineering/computer-science/minor-mini-computing/",
+    "requirements": {"heading": "Computing Minor", "total_units_raw": "6 units", "total_units": 6, "has_course_tables": true,
+      "sections": [{"heading": "Requirements", "level": 3, "units_raw": "6 units", "notes": [],
+        "rows": [{"type": "course", "codes": ["CSC 101"], "or_with_previous": false, "title": "Introduction to Computing", "units_raw": "3", "units_min": 3, "units_max": 3}]}],
+      "course_codes": ["CSC 101"]},
+    "roadmaps": []
+  }
+]

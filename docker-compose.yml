@@ -1,0 +1,35 @@
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    container_name: gw-db
+    environment:
+      POSTGRES_USER: gatorway
+      POSTGRES_PASSWORD: gatorway
+      POSTGRES_DB: gatorway
+    ports:
+      - "5432:5432"
+    volumes:
+      - gw_pgdata:/var/lib/postgresql   # PG 18 layout: PGDATA is /var/lib/postgresql/18/docker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gatorway -d gatorway"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    container_name: gw-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - gw_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  gw_pgdata:
+  gw_redisdata:
