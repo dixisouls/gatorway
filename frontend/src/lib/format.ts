@@ -29,18 +29,31 @@ export function shortRoadmapName(name: string, programTitle: string): string {
   return n || "Standard roadmap";
 }
 
+/** "Fall 2023", "SP2025", "2023 Fall" or "Transfer credit": the things a transcript uses as a term heading. */
+export const isTermLabel = (t: string) =>
+  /^(fall|spring|summer|winter)\s+\d{4}$/i.test(t) || /^(fa|sp|spr|su|sum|wi|win)\s?\d{2,4}$/i.test(t) || /^\d{4}\s+(fall|spring|summer|winter)$/i.test(t) || /^transfer( credit)?$/i.test(t);
+
 const SEASON: Record<string, number> = { winter: 0, spring: 1, summer: 2, fall: 3 };
 
+const ABBREVIATIONS: Record<string, number> = { fa: 3, sp: 1, spr: 1, su: 2, sum: 2, wi: 0, win: 0 };
+
+/** Chronological sort key: real terms by year then season, then transfer credit, then everything else. */
 function termRank(term: string): number {
-  const m = /^(winter|spring|summer|fall)\s+(\d{4})$/i.exec(term.trim());
-  return m ? Number(m[2]) * 10 + SEASON[m[1].toLowerCase()] : Number.POSITIVE_INFINITY;
+  if (/^transfer/i.test(term)) return 1e9;
+  const m = /^([a-z]{2,6})\s?(\d{2,4})$/i.exec(term) ?? /^(\d{4})\s+([a-z]{2,6})$/i.exec(term);
+  if (!m) return 2e9;
+  const [season, year] = /^\d/.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
+  const order = SEASON[season.toLowerCase()] ?? ABBREVIATIONS[season.toLowerCase()];
+  if (order === undefined) return 2e9;
+  return (year.length === 2 ? 2000 + Number(year) : Number(year)) * 10 + order;
 }
 
 /** Transcript courses grouped by term, oldest first; courses with no term go last under "Other". */
 export function groupByTerm(courses: TranscriptCourse[]): { term: string; courses: TranscriptCourse[] }[] {
   const groups = new Map<string, TranscriptCourse[]>();
   for (const c of courses) {
-    const key = c.term?.trim() || "Other";
+    const term = c.term?.trim();
+    const key = term && isTermLabel(term) ? term : "Other"; // an ID label or a placeholder is not a semester
     groups.set(key, [...(groups.get(key) ?? []), c]);
   }
   return [...groups.entries()]

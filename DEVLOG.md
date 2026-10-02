@@ -148,3 +148,9 @@ Built from `docs/superpowers/plans/2026-10-02-frontend.md`, test-first, one comm
 - **Removed:** `/auth/signup`, `/auth/login`, argon2, PyJWT, `JWT_SECRET`/`JWT_TTL_MINUTES` (unused values in an old `.env` are ignored). `users.password_hash` is now optional; `init_db` adds `firebase_uid` and relaxes the column on existing databases.
 - **Tests:** a fake verifier in the API tests (`fake:<uid>|<email>|<verified>` tokens), Firebase mocked in the frontend tests; the smoke script signs up through Firebase's REST API.
 - **Still to verify live:** a real sign-up and sign-in against the Firebase project (needs the web config values in `.env`).
+
+## UI polish after the redesign
+- **Semester heading showed "Student ID":** the extractor sometimes put a nearby label (or a redaction placeholder) in a course's `term`. The API now keeps only real semesters (`clean_term`: "Fall 2023", "SP2025" → "Spring 2025", "2023 Fall", "Transfer credit") and drops anything else; the transcript list also refuses non-semester headings and files those courses under "Other", with real terms sorted chronologically (abbreviations included).
+- **Degree step is step by step:** choosing a degree clears the list and search; only the chosen program ("Change program" to go back) and its roadmap options remain.
+- **AI picks are golden** (gold border, ring and glow).
+- **Personalising:** the roadmap shows at once while Gemini works (with the rotating-words chip), instead of the blocking overlay. When Gemini finishes, one full-screen shimmer plays and the picks replace the baseline cards mid-sweep. Saved roadmaps and runs without an interest skip it. `PersonalizationOverlay` and its CSS are no longer used.

@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 
-/** The AI star. Gold-to-purple, decorative. `spin` makes it slowly turn and breathe (use while the AI is working). */
+/** The decorative AI star. `spin` makes it slowly turn and breathe (use while the AI is working). */
 export function Sparkle({ size = 18, spin = false, className = "" }: { size?: number; spin?: boolean; className?: string }) {
   return (
     <motion.svg
@@ -14,13 +14,7 @@ export function Sparkle({ size = 18, spin = false, className = "" }: { size?: nu
       animate={spin ? { rotate: [0, 90, 180], scale: [1, 1.18, 1] } : undefined}
       transition={spin ? { duration: 2.4, repeat: Infinity, ease: "easeInOut" } : undefined}
     >
-      <defs>
-        <linearGradient id="sparkle-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#b29d6c" />
-          <stop offset="1" stopColor="#4a35a8" />
-        </linearGradient>
-      </defs>
-      <path fill="url(#sparkle-grad)" d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z" />
+      <path fill="currentColor" d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z" />
     </motion.svg>
   );
 }

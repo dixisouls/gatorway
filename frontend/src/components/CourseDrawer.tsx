@@ -105,10 +105,10 @@ function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose, ge 
         </button>
       </div>
 
-      {slot.status === "passed" && <p className="rounded-2xl bg-purple-soft/60 px-4 py-3 text-sm text-purple">You&apos;ve completed this course. ✓</p>}
+      {slot.status === "passed" && <p className="rounded-md bg-purple-soft/60 px-4 py-3 text-sm text-purple">You&apos;ve completed this course. ✓</p>}
 
       {slot.status === "replaced" && applied?.reason && (
-        <div className="rounded-2xl bg-gradient-to-br from-gold-soft to-white px-4 py-3 ring-1 ring-gold/30">
+        <div className="rounded-md bg-gold-soft px-4 py-3 ring-1 ring-gold/30">
           <p className="flex items-center gap-1.5 text-xs font-medium text-[#7a6a3c]">
             <Sparkle size={13} /> Why this was picked
           </p>
@@ -123,7 +123,7 @@ function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose, ge 
         return (
           <section key={code}>
             {codes.length > 1 && <h3 className="font-serif text-lg">{d ? `${code} · ${d.title}` : code}</h3>}
-            {details === null && <div className="mt-2 h-16 animate-shimmer rounded-2xl bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />}
+            {details === null && <div className="mt-2 h-16 animate-shimmer rounded-md bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />}
             {d?.description && <p className="mt-2 text-[15px] leading-relaxed text-ink/90">{d.description}</p>}
             {d?.prereq_text && (
               <p className="mt-3 text-sm text-muted">
@@ -146,8 +146,8 @@ function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose, ge 
 
       {isGeSlot(slot) && ge && (
         <section aria-label="GE courses" className="space-y-4">
-          {ge.hint && !ge.done && <p className="rounded-2xl bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">{ge.hint}</p>}
-          {ge.done && <p className="rounded-2xl bg-purple-soft/60 px-4 py-3 text-sm text-purple">You marked this requirement as completed. ✓</p>}
+          {ge.hint && !ge.done && <p className="rounded-md bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">{ge.hint}</p>}
+          {ge.done && <p className="rounded-md bg-purple-soft/60 px-4 py-3 text-sm text-purple">You marked this requirement as completed. ✓</p>}
           <Button variant={ge.done ? "ghost" : "soft"} onClick={ge.onToggle}>
             {ge.done ? "Undo" : "Mark as completed"}
           </Button>
@@ -175,21 +175,21 @@ function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose, ge 
                 className="mt-3 w-full rounded-full border border-line bg-white/80 px-4 py-2.5 text-sm outline-none transition focus:border-purple/40 focus:ring-4 focus:ring-purple-soft"
               />
               {optionsError && (
-                <p role="alert" className="mt-3 rounded-2xl bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
+                <p role="alert" className="mt-3 rounded-md bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
                   {optionsError}
                 </p>
               )}
               {swapError && (
-                <p role="alert" className="mt-3 rounded-2xl bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
+                <p role="alert" className="mt-3 rounded-md bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
                   {swapError}
                 </p>
               )}
               <ul className="mt-4 flex flex-col gap-3">
-                {loading && [0, 1, 2].map((i) => <li key={i} className="h-24 animate-shimmer rounded-2xl bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />)}
+                {loading && [0, 1, 2].map((i) => <li key={i} className="h-24 animate-shimmer rounded-md bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />)}
                 {!loading && loaded && loaded.items.length === 0 && !optionsError && <li className="text-sm text-muted">No other courses fit this slot right now.</li>}
                 {!loading &&
                   loaded?.items.map((c) => (
-                    <li key={c.code} className="rounded-2xl border border-line bg-white/80 p-4">
+                    <li key={c.code} className="rounded-md border border-line bg-white/80 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-[11px] font-medium uppercase tracking-wider text-muted">

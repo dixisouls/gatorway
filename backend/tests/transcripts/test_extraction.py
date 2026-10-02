@@ -35,3 +35,26 @@ REAL_CATALOG = Path(__file__).resolve().parents[3] / "scraping/sfsu_output/sfsu_
 def test_every_real_catalog_code_survives_normalisation_unchanged():
     codes = [c["course_code"] for c in json.loads(REAL_CATALOG.read_text()) if c.get("course_code")]
     assert [c for c in codes if normalize_code(c) != c] == []
+
+
+import pytest as _pytest  # noqa: E402
+
+from gatorway.transcripts.extraction import clean_term  # noqa: E402
+
+
+@_pytest.mark.parametrize("raw,expected", [
+    ("Fall 2023", "Fall 2023"), ("fall  2023", "Fall 2023"), ("SP2025", "Spring 2025"), ("FA 2023", "Fall 2023"), ("SU24", "Summer 2024"),
+    ("2023 Fall", "Fall 2023"), ("Winter 2024", "Winter 2024"), ("Transfer Credit", "Transfer credit"),
+])
+def test_real_terms_are_kept_in_one_readable_form(raw, expected):
+    assert clean_term(raw) == expected
+
+
+@_pytest.mark.parametrize("raw", ["Student ID", "[STUDENT ID]", "SFSU ID: [STUDENT ID]", "923000111", "", None, "Name", "Cumulative GPA 3.5"])
+def test_anything_that_is_not_a_term_is_dropped_never_shown_as_a_semester(raw):
+    assert clean_term(raw) is None
+
+
+def test_the_cleaned_term_is_what_gets_saved():
+    ex = ExtractedTranscript(is_sfsu_transcript=True, courses=[ExtractedCourse(code="CSC 101", grade="A", term="[STUDENT ID]"), ExtractedCourse(code="CSC 215", grade="B", term="SP2025")])
+    assert [(c.code, c.term) for c in passed_courses(ex)] == [("CSC 101", None), ("CSC 215", "Spring 2025")]

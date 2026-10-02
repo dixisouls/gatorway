@@ -67,20 +67,41 @@ export function ProgramStep({ onChosen }: { onChosen: (p: ChosenProgram) => void
       });
   }
 
+  function changeProgram() {
+    latestPick.current += 1; // ignore a roadmap response still in flight for the old choice
+    setSelected(null);
+    setRoadmaps(null);
+    setRoadmapId(null);
+    setError("");
+  }
+
   const noRoadmap = selected !== null && roadmaps !== null && roadmaps.length === 0;
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="text-center font-serif text-4xl text-purple">What are you studying?</h1>
-      <p className="mx-auto mt-3 max-w-md text-center text-muted">Pick your program and we&apos;ll lay out the official roadmap.</p>
+    <div className="step-content">
+      <h1 className="step-heading">Find your field.</h1>
+      <p className="step-description">Choose the program you’re working toward. We’ll build from its official degree roadmap.</p>
 
-      <div className="mt-8 rounded-[2rem] border border-line bg-white/70 p-5 shadow-soft backdrop-blur sm:p-6">
+      <div className="step-panel">
+        {selected ? (
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted">Your program</p>
+              <p className="mt-1 text-lg text-ink">{selected.title}</p>
+              <p className="mt-1 text-xs text-muted">{[selected.degree_type, selected.college].filter(Boolean).join(" · ")}</p>
+            </div>
+            <button type="button" onClick={changeProgram} className="shrink-0 text-sm text-muted transition hover:text-purple">
+              Change program
+            </button>
+          </div>
+        ) : (
+          <>
         <input
           aria-label="Search programs"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search programs, e.g. computer science"
-          className="w-full rounded-2xl border border-line bg-white/80 px-4 py-3 text-[15px] outline-none transition focus:border-purple/40 focus:ring-4 focus:ring-purple-soft"
+          className="w-full rounded-md border border-line bg-white/80 px-4 py-3 text-[15px] outline-none transition focus:border-purple/40 focus:ring-4 focus:ring-purple-soft"
         />
         <div className="mt-3 flex flex-wrap gap-2">
           {LEVELS.map((l) => (
@@ -97,27 +118,25 @@ export function ProgramStep({ onChosen }: { onChosen: (p: ChosenProgram) => void
         </div>
 
         {error && (
-          <p role="alert" className="mt-4 rounded-2xl bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
+          <p role="alert" className="mt-4 rounded-md bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
             {error}
           </p>
         )}
 
-        <ul className="mt-4 max-h-80 space-y-1.5 overflow-y-auto pr-1">
-          {programs === null && !error && <li className="h-12 animate-shimmer rounded-2xl bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />}
+        <ul className="mt-6 max-h-[26rem] overflow-y-auto pr-1">
+          {programs === null && !error && <li className="h-12 animate-shimmer rounded-md bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]" />}
           {programs?.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted">No programs match that search.</li>}
           {programs?.map((p) => (
             <li key={p.id}>
-              <button
-                type="button"
-                onClick={() => choose(p)}
-                className={`w-full rounded-2xl px-4 py-3 text-left transition ${selected?.id === p.id ? "bg-purple-soft ring-1 ring-purple/20" : "hover:bg-purple-soft/50"}`}
-              >
-                <span className="block text-[15px] text-ink">{p.title}</span>
-                <span className="block text-xs text-muted">{[p.degree_type, p.college].filter(Boolean).join(" · ")}</span>
+              <button type="button" onClick={() => choose(p)} className="program-row w-full px-3 py-4 text-left transition hover:bg-purple-soft/50">
+                <span className="flex items-start justify-between gap-4 text-[15px] text-ink">{p.title}<span aria-hidden="true">↗</span></span>
+                <span className="mt-1.5 block text-xs text-muted">{[p.degree_type, p.college].filter(Boolean).join(" · ")}</span>
               </button>
             </li>
           ))}
         </ul>
+          </>
+        )}
 
         <AnimatePresence>
           {selected && (
@@ -130,8 +149,8 @@ export function ProgramStep({ onChosen }: { onChosen: (p: ChosenProgram) => void
                     <legend className="mb-2 text-sm text-muted">Which roadmap?</legend>
                     <div className="flex flex-col gap-2">
                       {roadmaps.map((r) => (
-                        <label key={r.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-2.5 text-sm transition ${roadmapId === r.id ? "bg-gold-soft ring-1 ring-gold/40" : "hover:bg-purple-soft/50"}`}>
-                          <input type="radio" name="roadmap" checked={roadmapId === r.id} onChange={() => setRoadmapId(r.id)} className="accent-[#231161]" />
+                        <label key={r.id} className={`flex cursor-pointer items-center gap-3 rounded-md px-4 py-2.5 text-sm transition ${roadmapId === r.id ? "bg-gold-soft ring-1 ring-gold/40" : "hover:bg-purple-soft/50"}`}>
+                          <input type="radio" name="roadmap" checked={roadmapId === r.id} onChange={() => setRoadmapId(r.id)} className="accent-ink" />
                           {shortRoadmapName(r.name, selected.title)}
                         </label>
                       ))}

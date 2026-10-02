@@ -57,3 +57,15 @@ test("a failed search shows a message instead of an empty list", async () => {
   render(<ProgramStep onChosen={() => {}} />);
   expect(await screen.findByRole("alert")).toHaveTextContent(/couldn.t load programs/i);
 });
+
+test("picking a degree clears the list so only that choice and its roadmap options remain, and Change brings the list back", async () => {
+  roadmaps.mockResolvedValue({ roadmaps: [{ id: 1, name: `${cs.title} Roadmap`, is_default: true, total_units_required: 120, major_units: 74 }] });
+  render(<ProgramStep onChosen={() => {}} />);
+  await userEvent.click(await screen.findByText(art.title));
+  expect(screen.queryByText(cs.title)).not.toBeInTheDocument(); // the other degrees are gone
+  expect(screen.queryByLabelText("Search programs")).not.toBeInTheDocument();
+  expect(screen.getByText(art.title)).toBeInTheDocument(); // the chosen one stays
+  await userEvent.click(screen.getByRole("button", { name: "Change program" }));
+  expect(await screen.findByText(cs.title)).toBeInTheDocument();
+  expect(screen.getByLabelText("Search programs")).toBeInTheDocument();
+});

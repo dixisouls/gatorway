@@ -62,10 +62,10 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
   }
 
   return (
-    <div className="mx-auto max-w-xl">
-      <h1 className="text-center font-serif text-4xl text-purple">Let&apos;s start with your transcript</h1>
-      <p className="mx-auto mt-3 max-w-md text-center text-muted">We use it to skip the courses you&apos;ve already taken.</p>
-      <div className="mt-10">
+    <div className="step-content">
+      <h1 className="step-heading">Bring your progress with you.</h1>
+      <p className="step-description">Upload your transcript so your plan starts where you are. We’ll account for the courses you’ve already taken.</p>
+      <div className="step-panel">
         <AnimatePresence mode="wait">
           {phase === "idle" && (
             <motion.div key="idle" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
@@ -80,13 +80,12 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
                   setDragging(false);
                   void upload(e.dataTransfer.files[0]);
                 }}
-                className={`flex cursor-pointer flex-col items-center gap-3 rounded-[2rem] border border-dashed px-8 py-14 text-center shadow-soft backdrop-blur transition-colors ${
-                  dragging ? "border-purple/50 bg-purple-soft/70" : "border-purple/20 bg-white/60 hover:bg-white/80"
-                }`}
+                data-dragging={dragging}
+                className="upload-zone flex cursor-pointer flex-col items-center justify-center gap-3 px-6 py-8 text-center transition-colors"
               >
                 <input type="file" accept="application/pdf" aria-label="Transcript PDF" className="sr-only" onChange={(e) => void upload(e.target.files?.[0])} />
-                <Sparkle size={28} />
-                <span className="font-serif text-2xl">Drop your SFSU transcript</span>
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true"><path d="M10 4h9l6 6v18H7V4h3Zm9 0v7h6M16 23V14m-4 4 4-4 4 4" /></svg>
+                <span className="text-lg font-semibold tracking-tight">Drop your SFSU transcript</span>
                 <span className="text-sm text-muted">or click to choose a PDF</span>
               </label>
               {saved && (
@@ -97,7 +96,7 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
                   </Button>
                 </div>
               )}
-                          {onSkip && (
+              {onSkip && (
                 <button type="button" onClick={onSkip} className="mx-auto mt-6 block text-sm text-muted transition hover:text-purple">
                   Skip for now — I just want to explore
                 </button>
@@ -111,7 +110,7 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-6 rounded-[2rem] border border-line bg-white/70 px-8 py-14 shadow-soft backdrop-blur"
+              className="transcript-processing"
             >
               <Sparkle size={44} spin />
               <RotatingWords phrases={EXTRACT_PHRASES} />
@@ -119,15 +118,15 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
           )}
 
           {phase === "done" && summary && (
-            <motion.div key="done" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-[2rem] border border-line bg-white/70 p-8 shadow-soft backdrop-blur">
-              <h2 className="text-center font-serif text-2xl">
+            <motion.div key="done" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-line bg-paper/60 p-5">
+              <h2 className="text-lg font-semibold">
                 We found {summary.count} {summary.count === 1 ? "course" : "courses"}
               </h2>
               <div className="mt-6 max-h-[26rem] space-y-5 overflow-y-auto pr-1">
                 {groupByTerm(summary.courses).map((g, gi) => (
                   <motion.div key={g.term} role="group" aria-label={g.term} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: gi * 0.08 }}>
                     <h3 className="mb-2 px-1 font-serif text-lg text-purple">{g.term}</h3>
-                    <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-white/80 ring-1 ring-line">
+                    <ul className="divide-y divide-line overflow-hidden rounded-md bg-white/80 ring-1 ring-line">
                       {g.courses.map((c) => (
                         <li key={c.code} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                           <span className="flex flex-wrap items-center gap-2">
@@ -154,8 +153,8 @@ export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () =>
           )}
 
           {phase === "error" && (
-            <motion.div key="error" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-[2rem] border border-line bg-white/70 p-8 text-center shadow-soft backdrop-blur">
-              <p role="alert" className="rounded-2xl bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
+            <motion.div key="error" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-line bg-paper/60 p-5 text-center">
+              <p role="alert" className="rounded-md bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">
                 {error}
               </p>
               <Button className="mt-6" onClick={() => setPhase("idle")}>

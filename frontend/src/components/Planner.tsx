@@ -10,24 +10,17 @@ import { InterestStep } from "./InterestStep";
 import { ProgramStep, type ChosenProgram } from "./ProgramStep";
 import { RoadmapView } from "./RoadmapView";
 import { TranscriptStep } from "./TranscriptStep";
-import { Aurora } from "./ui/Aurora";
 import { Button } from "./ui/Button";
-import { Sparkle } from "./ui/Sparkle";
+import { Brand } from "./ui/Brand";
+import { SetupGuide } from "./SetupGuide";
 
 type Step = "transcript" | "program" | "interest" | "roadmap";
-const ORDER: Step[] = ["transcript", "program", "interest"];
-
-function StepDots({ step }: { step: Step }) {
-  const at = ORDER.indexOf(step);
-  if (at < 0) return null;
-  return (
-    <div className="flex items-center gap-1.5" aria-label={`Step ${at + 1} of ${ORDER.length}`}>
-      {ORDER.map((s, i) => (
-        <motion.span key={s} animate={{ width: i === at ? 22 : 7, opacity: i <= at ? 1 : 0.35 }} className="h-[7px] rounded-full bg-purple" />
-      ))}
-    </div>
-  );
-}
+const STEPS: { key: Step; label: string; description: string }[] = [
+  { key: "transcript", label: "Transcript", description: "Start with what you know." },
+  { key: "program", label: "Program", description: "Choose your direction." },
+  { key: "interest", label: "Interests", description: "Follow your curiosity." },
+  { key: "roadmap", label: "Your roadmap", description: "Make your next move." },
+];
 
 export function Planner() {
   const { user, logout } = useAuth();
@@ -55,48 +48,44 @@ export function Planner() {
     }
   }
 
+  const stepIndex = STEPS.findIndex((item) => item.key === step);
+
   return (
-    <div className="relative min-h-dvh">
-      <Aurora />
-      <nav className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
-        <span className="inline-flex items-center gap-2 font-serif text-xl text-purple">
-          <Sparkle size={18} /> GatorWay
-        </span>
-        <StepDots step={step} />
-        <div className="flex items-center gap-1 text-sm">
-          {step === "roadmap" && (
-            <Button variant="ghost" onClick={() => setStep("program")}>
-              New roadmap
-            </Button>
-          )}
-          <Button variant="ghost" onClick={() => setHistory(true)}>
-            History
-          </Button>
-          <span className="hidden max-w-[10rem] truncate text-muted sm:inline">{user?.email}</span>
-          <Button variant="ghost" onClick={logout}>
-            Sign out
-          </Button>
+    <div className="site-shell">
+      <header className="site-header">
+        <div className="flex items-center gap-8"><Brand /><span className="header-context hidden sm:inline">Your degree planner</span></div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => setHistory(true)}>History</Button>
+          <span className="account-avatar hidden sm:grid" title={user?.email}>{user?.email?.[0]?.toUpperCase() ?? "G"}</span>
+          <Button variant="ghost" onClick={logout}>Sign out</Button>
         </div>
-      </nav>
-
-      <main className="mx-auto max-w-5xl px-5 pb-28 pt-6 sm:px-8">
-        {notice && (
-          <p role="alert" className="mb-6 rounded-2xl bg-gold-soft px-5 py-3 text-sm text-[#6b5a2a]">
-            {notice}
-          </p>
-        )}
-        <AnimatePresence mode="wait">
-          <motion.div key={step === "roadmap" ? spec?.key : step} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }}>
-            {step === "transcript" && <TranscriptStep onDone={() => setStep("program")} onSkip={() => setStep("program")} />}
-            {step === "program" && <ProgramStep onChosen={(p) => { setProgram(p); setStep("interest"); }} />}
-            {step === "interest" && program && (
-              <InterestStep programTitle={program.title} onSubmit={(interest) => start({ programId: program.id, roadmapId: program.roadmapId, interest })} />
-            )}
-            {step === "roadmap" && spec && <RoadmapView spec={spec} onRerun={start} onOpenHistory={() => setHistory(true)} onAddTranscript={() => setStep("transcript")} />}
-          </motion.div>
-        </AnimatePresence>
+      </header>
+      <main className={step === "roadmap" ? "planner-main roadmap-main" : "planner-main"}>
+        <div className="workspace-heading">
+          <div><p className="eyebrow">YOUR NEXT CHAPTER</p><h2>{step === "roadmap" ? "A little direction. A lot of possibility." : "Let’s put your future in focus."}</h2></div>
+          {step === "roadmap" ? <Button variant="soft" onClick={() => setStep("program")}>+ New roadmap</Button> : <span className="setup-count">Step {stepIndex + 1} of 3</span>}
+        </div>
+        {notice && <p role="alert" className="mb-5 rounded-xl bg-gold-soft px-5 py-3 text-sm text-[#6b5a2a]">{notice}</p>}
+        <div className={step === "roadmap" ? "roadmap-workspace" : "setup-card"}>
+          {step !== "roadmap" && <ol className="setup-progress" aria-label="Planning steps">
+            {STEPS.slice(0, 3).map((item, index) => <li key={item.key} aria-current={step === item.key ? "step" : undefined} data-complete={index < stepIndex}>
+              <span className="progress-number">{index < stepIndex ? "✓" : index + 1}</span><span>{item.label}</span>
+            </li>)}
+          </ol>}
+          <AnimatePresence mode="wait">
+            <motion.div className={step === "roadmap" ? "" : "setup-body"} key={step === "roadmap" ? spec?.key : step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: .2 }}>
+              {step !== "roadmap" && <div className="setup-form">
+                {step === "transcript" && <TranscriptStep onDone={() => setStep("program")} onSkip={() => setStep("program")} />}
+                {step === "program" && <ProgramStep onChosen={(p) => { setProgram(p); setStep("interest"); }} />}
+                {step === "interest" && program && <InterestStep programTitle={program.title} onSubmit={(interest) => start({ programId: program.id, roadmapId: program.roadmapId, interest })} />}
+              </div>}
+              {step !== "roadmap" && <SetupGuide step={step} />}
+              {step === "roadmap" && spec && <RoadmapView spec={spec} onRerun={start} onOpenHistory={() => setHistory(true)} onAddTranscript={() => setStep("transcript")} />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </main>
-
+      <footer className="site-footer"><span>GatorWay · Made for your next chapter.</span><span>San Francisco State University</span></footer>
       <HistoryPanel open={history} onClose={() => setHistory(false)} onPick={(id) => void openSaved(id)} />
     </div>
   );

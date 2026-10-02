@@ -28,17 +28,18 @@ export function AuthCard() {
 
   const label = mode === "login" ? "Sign in" : "Create account";
   const field =
-    "w-full rounded-2xl border border-line bg-white/80 px-5 py-3.5 text-base outline-none transition focus:border-purple/40 focus:ring-4 focus:ring-purple-soft";
+    "auth-field";
 
   return (
-    <form onSubmit={submit} className="w-full max-w-xl rounded-[2rem] border border-line bg-white/70 p-8 shadow-soft backdrop-blur sm:p-10">
-      <h2 className="font-serif text-3xl">{mode === "login" ? "Welcome back" : "Join GatorWay"}</h2>
-      <p className="mt-1 text-sm text-muted">Use your SFSU email address.</p>
-      <label className="mt-6 block text-sm text-muted">
+    <form onSubmit={submit} className="w-full">
+      <p className="eyebrow mb-3">LET’S GET YOU STARTED</p>
+      <h2 className="text-[30px] font-semibold tracking-tight">{mode === "login" ? "Welcome back" : "Join GatorWay"}</h2>
+      <p className="mt-3 text-sm text-muted">Use your SFSU email address.</p>
+      <label className="mt-7 block text-xs font-medium text-ink">
         <span className="mb-1.5 block">SFSU email</span>
         <input className={field} type="email" autoComplete="email" placeholder="you@sfsu.edu" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </label>
-      <label className="mt-4 block text-sm text-muted">
+      <label className="mt-5 block text-xs font-medium text-ink">
         <span className="mb-1.5 block">Password</span>
         <input
           className={field}
