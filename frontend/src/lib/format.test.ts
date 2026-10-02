@@ -1,4 +1,4 @@
-import { fmtUnits, groupByTerm, kindLabel, relativeDate, shortRoadmapName, slotCodes, termUnits } from "@/lib/format";
+import { creditKind, fmtUnits, groupByTerm, kindLabel, relativeDate, shortRoadmapName, slotCodes, termUnits } from "@/lib/format";
 import type { Slot, Term } from "@/lib/types";
 
 const slot = (over: Partial<Slot> = {}): Slot => ({
@@ -48,4 +48,13 @@ test("transcript courses group by term, oldest first, with unknown terms last", 
   const groups = groupByTerm([c("CSC 220", "Spring 2024"), c("CSC 101", "Fall 2023"), c("MATH 226", "Fall 2023"), c("ART 1", null), c("X 1", "Summer 2023")]);
   expect(groups.map((g) => g.term)).toEqual(["Summer 2023", "Fall 2023", "Spring 2024", "Other"]);
   expect(groups[1].courses.map((x) => x.code)).toEqual(["CSC 101", "MATH 226"]);
+});
+
+test("transcript lines the catalog cannot match are described, not called errors", () => {
+  const c = (code: string, flagged = true) => ({ code, title: null, grade: "A", term: null, flagged });
+  expect(creditKind(c("GE 4"))).toBe("GE credit");
+  expect(creditKind(c("ENGL 1A"))).toBe("Transfer credit");
+  expect(creditKind(c("ENGL 1X1"))).toBe("Transfer credit");
+  expect(creditKind(c("XYZ 100"))).toBe("Not in the SFSU catalog");
+  expect(creditKind(c("CSC 101", false))).toBeNull();
 });

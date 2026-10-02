@@ -1,6 +1,6 @@
 import type {
   AuthResponse, CourseDetail, OptionsResponse, Pathway, PathwayListItem, ProgramBrief, RoadmapBrief, SavedPathway,
-  TranscriptSummary, User,
+  TranscriptSummary, User, GeCourse,
 } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -87,5 +87,6 @@ export const api = {
     request<OptionsResponse>(`/pathways/${id}/slots/${encodeURIComponent(slotId)}/options${query({ query: q, limit })}`),
   swap: (id: number, slotId: string, code: string) =>
     request<SavedPathway>(`/pathways/${id}/swap`, { method: "POST", json: { slot_id: slotId, new_course_code: code } }),
+  geCourses: (areas: string[]) => request<{ areas: string[]; courses: GeCourse[] }>(`/courses/ge${query({ areas: areas.join(",") })}`),
   courses: (codes: string[]) => request<{ courses: Record<string, CourseDetail> }>(`/courses${query({ codes: codes.join(",") })}`),
 };

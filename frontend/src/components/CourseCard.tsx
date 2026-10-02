@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtUnits, kindLabel, slotCodes } from "@/lib/format";
+import { isGeSlot } from "@/lib/ge";
 import type { AppliedEdit, CourseDetail, Slot } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { Sparkle } from "./ui/Sparkle";
@@ -16,14 +17,18 @@ export interface CourseCardProps {
   enterDelay: number;
   onOpen: () => void; // opens the options sheet for this slot
   selectable?: { selected: boolean; onSelect: () => void }; // an option inside a "Choose one" group
+  done?: boolean; // the student marked this GE requirement completed
+  onToggleDone?: () => void; // shows the mark-as-completed control (GE rows)
+  hint?: string; // e.g. "You have GE 4 credit on your transcript"
 }
 
 const shimmer = "animate-shimmer bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]";
 
-export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOpen, selectable }: CourseCardProps) {
-  const passed = slot.status === "passed";
+export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOpen, selectable, done, onToggleDone, hint }: CourseCardProps) {
+  const geRow = isGeSlot(slot);
+  const passed = slot.status === "passed" || !!done;
   const open = slot.codes.length === 0;
-  const clickable = !open || slot.swappable;
+  const clickable = !open || slot.swappable || geRow;
   const kind = kindLabel(slot);
   const codesKey = slot.codes.join("|");
   const [expanded, setExpanded] = useState(false);
@@ -93,11 +98,23 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
             </span>
           )}
           {open && slot.swappable && <span className="text-muted opacity-60 transition-opacity group-hover:opacity-100">See options →</span>}
+          {geRow && !passed && <span className="text-muted opacity-60 transition-opacity group-hover:opacity-100">See courses →</span>}
           {!open && !expanded && <span className="text-muted opacity-0 transition-opacity group-hover:opacity-100">Tap for details</span>}
           {!open && kind && !isPick && <span className="text-muted">{kind}</span>}
         </span>
         {isPick && applied?.reason && !expanded && <span className="mt-2 line-clamp-2 block text-xs leading-relaxed text-muted">{applied.reason}</span>}
       </button>
+
+      {geRow && ((hint && !done) || onToggleDone) && (
+        <div className="space-y-2 px-4 pb-3">
+          {hint && !done && <p className="text-xs text-[#7a6a3c]">{hint}</p>}
+          {onToggleDone && (
+            <Button variant={done ? "ghost" : "soft"} className="!px-4 !py-1.5 text-xs" onClick={onToggleDone}>
+              {done ? "Undo" : "Mark as completed"}
+            </Button>
+          )}
+        </div>
+      )}
 
       {selectable && (
         <div className="px-4 pb-3">

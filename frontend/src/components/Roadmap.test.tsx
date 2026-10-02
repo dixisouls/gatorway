@@ -80,3 +80,19 @@ test("a Select One row and its alternatives show as one Choose one group where a
   expect(screen.getByText("4 units")).toBeInTheDocument(); // the group carries the units, not each option
   expect(screen.queryByText("0 units")).not.toBeInTheDocument();
 });
+
+test("GE rows can be marked completed from the roadmap and show matching transcript credit", async () => {
+  const onToggleDone = vi.fn();
+  const gePath: Pathway = {
+    ...pathway,
+    terms: [{ position: 0, label: "First Semester", slots: [
+      slot({ slot_id: "g1", codes: [], title: "GE Area 4: Social and Behavioral Sciences" }),
+      slot({ slot_id: "g2", codes: [], title: "GE Area 3: Arts and Humanities" }),
+    ] }],
+  };
+  render(<Roadmap {...props} pathway={gePath} baselineSlots={{}} isRevealed={() => true} done={new Set(["g2"])} onToggleDone={onToggleDone} creditAreas={["4"]} />);
+  expect(screen.getAllByText("You have GE 4 credit on your transcript")).toHaveLength(1); // only the Area 4 row
+  expect(screen.getAllByText(/✓ Completed/)).toHaveLength(1); // g2
+  await userEvent.click(screen.getByRole("button", { name: "Mark as completed" }));
+  expect(onToggleDone).toHaveBeenCalledWith("g1");
+});

@@ -5,10 +5,10 @@ import { personalisePhrases, RoadmapView } from "@/components/RoadmapView";
 import type { Pathway, SavedPathway, Slot } from "@/lib/types";
 import type { RunSpec } from "@/lib/usePathwayRun";
 
-const { baseline, createPathway, courses, options, swap } = vi.hoisted(() => ({
-  baseline: vi.fn(), createPathway: vi.fn(), courses: vi.fn(), options: vi.fn(), swap: vi.fn(),
+const { baseline, createPathway, courses, options, swap, myCourses, geCourses } = vi.hoisted(() => ({
+  baseline: vi.fn(), createPathway: vi.fn(), courses: vi.fn(), options: vi.fn(), swap: vi.fn(), myCourses: vi.fn(), geCourses: vi.fn(),
 }));
-vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api: { baseline, createPathway, courses, options, swap } }));
+vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api: { baseline, createPathway, courses, options, swap, myCourses, geCourses } }));
 
 const slot = (over: Partial<Slot> = {}): Slot => ({
   slot_id: "a", codes: ["CSC 101"], title: "Introduction to Computing", units: 3, slot_kind: "fixed", swappable: false,
@@ -29,7 +29,10 @@ const spec = (over: Partial<RunSpec> = {}): RunSpec => ({ key: "k", programId: 1
 const noop = () => {};
 
 beforeEach(() => {
-  [baseline, createPathway, courses, options, swap].forEach((m) => m.mockReset());
+  [baseline, createPathway, courses, options, swap, myCourses, geCourses].forEach((m) => m.mockReset());
+  localStorage.clear();
+  myCourses.mockResolvedValue({ count: 0, courses: [], flagged: [] });
+  geCourses.mockResolvedValue({ areas: [], courses: [] });
   baseline.mockResolvedValue({ pathway: path(open) });
   courses.mockResolvedValue({ courses: {} });
   options.mockResolvedValue({ slot_id: "b", query: "", candidates: [] });
@@ -139,4 +142,19 @@ test("the working chip is valid HTML (no block inside a paragraph)", async () =>
   const { container } = render(<RoadmapView spec={spec()} onRerun={noop} onOpenHistory={noop} />);
   await screen.findByText(`${personalisePhrases("drawing")[0]}…`);
   expect(container.querySelectorAll("p div, p section, p article")).toHaveLength(0);
+});
+
+test("a GE row shows the matching transcript credit and its completion is remembered", async () => {
+  myCourses.mockResolvedValue({ count: 1, courses: [{ code: "GE 4", title: null, grade: "A", term: null, flagged: true }], flagged: ["GE 4"] });
+  const geRow = slot({ slot_id: "g", codes: [], title: "GE Area 4: Social and Behavioral Sciences" });
+  const gePath = { ...path(open), terms: [{ position: 0, label: "First Semester", slots: [geRow] }] };
+  const saved = { ...result({ applied: [] }), pathway: gePath };
+  const s = spec({ saved });
+  const { unmount } = render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />);
+  expect(await screen.findByText("You have GE 4 credit on your transcript")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Mark as completed" }));
+  expect(screen.getByText(/✓ Completed/)).toBeInTheDocument();
+  unmount();
+  render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />); // reopened later
+  expect(await screen.findByText(/✓ Completed/)).toBeInTheDocument();
 });

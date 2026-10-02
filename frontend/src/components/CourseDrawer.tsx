@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { fmtUnits, kindLabel, slotCodes } from "@/lib/format";
+import { geAreas, isGeSlot } from "@/lib/ge";
 import type { AppliedEdit, Candidate, CourseDetail, SavedPathway, Slot } from "@/lib/types";
 import { useDebounced } from "@/lib/useDebounced";
+import { GeList } from "./GeList";
 import { Button } from "./ui/Button";
 import { Sheet } from "./ui/Sheet";
 import { Sparkle } from "./ui/Sparkle";
@@ -16,17 +18,18 @@ export interface CourseDrawerProps {
   canSwap: boolean; // false while Gemini is still working
   onClose: () => void;
   onSwapped: (result: SavedPathway, slotId: string) => void;
+  ge?: { done: boolean; onToggle: () => void; hint?: string }; // for a GE requirement row
 }
 
-export function CourseDrawer({ slot, applied, pathwayId, canSwap, onClose, onSwapped }: CourseDrawerProps) {
+export function CourseDrawer({ slot, applied, pathwayId, canSwap, onClose, onSwapped, ge }: CourseDrawerProps) {
   return (
     <Sheet open={slot !== null} onClose={onClose} label={slot ? `${slotCodes(slot) || slot.title} details` : "Course details"}>
-      {slot && <DrawerBody key={slot.slot_id} slot={slot} applied={applied} pathwayId={pathwayId} canSwap={canSwap} onSwapped={onSwapped} onClose={onClose} />}
+      {slot && <DrawerBody key={slot.slot_id} slot={slot} applied={applied} pathwayId={pathwayId} canSwap={canSwap} onSwapped={onSwapped} onClose={onClose} ge={ge} />}
     </Sheet>
   );
 }
 
-function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose }: Omit<CourseDrawerProps, "slot"> & { slot: Slot }) {
+function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose, ge }: Omit<CourseDrawerProps, "slot"> & { slot: Slot }) {
   const codesKey = slot.codes.join("|");
   const codes = useMemo(() => (codesKey ? codesKey.split("|") : []), [codesKey]);
   const [details, setDetails] = useState<Record<string, CourseDetail> | null>(null);
@@ -140,6 +143,18 @@ function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose }: O
           </section>
         );
       })}
+
+      {isGeSlot(slot) && ge && (
+        <section aria-label="GE courses" className="space-y-4">
+          {ge.hint && !ge.done && <p className="rounded-2xl bg-gold-soft px-4 py-3 text-sm text-[#6b5a2a]">{ge.hint}</p>}
+          {ge.done && <p className="rounded-2xl bg-purple-soft/60 px-4 py-3 text-sm text-purple">You marked this requirement as completed. ✓</p>}
+          <Button variant={ge.done ? "ghost" : "soft"} onClick={ge.onToggle}>
+            {ge.done ? "Undo" : "Mark as completed"}
+          </Button>
+          <h3 className="font-serif text-xl text-purple">Courses that count</h3>
+          <GeList areas={geAreas(slot.title)} />
+        </section>
+      )}
 
       {editable && (
         <section aria-label="Other options">

@@ -128,6 +128,7 @@ export interface OptionsResponse {
 
 export interface TranscriptCourse {
   code: string;
+  title?: string | null;
   grade: string | null;
   term: string | null;
   flagged: boolean;
@@ -148,4 +149,13 @@ export interface AuthResponse {
   user: User;
   access_token: string;
   token_type: string;
+}
+
+export interface GeCourse {
+  code: string;
+  title: string;
+  units_min: number;
+  units_max: number;
+  description: string;
+  attributes: string[];
 }

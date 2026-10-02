@@ -4,8 +4,8 @@ import { ApiError } from "@/lib/api";
 import { CourseDrawer } from "@/components/CourseDrawer";
 import type { SavedPathway, Slot } from "@/lib/types";
 
-const { courses, options, swap } = vi.hoisted(() => ({ courses: vi.fn(), options: vi.fn(), swap: vi.fn() }));
-vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api: { courses, options, swap } }));
+const { courses, options, swap, geCourses } = vi.hoisted(() => ({ courses: vi.fn(), options: vi.fn(), swap: vi.fn(), geCourses: vi.fn() }));
+vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api: { courses, options, swap, geCourses } }));
 
 const slot = (over: Partial<Slot> = {}): Slot => ({
   slot_id: "s1", codes: [], title: "University Elective", units: 3, slot_kind: "free_elective", swappable: true,
@@ -19,6 +19,7 @@ beforeEach(() => {
   courses.mockReset();
   options.mockReset();
   swap.mockReset();
+  geCourses.mockReset();
   courses.mockResolvedValue({ courses: {} });
   options.mockResolvedValue({ slot_id: "s1", query: "", candidates: [candidate("CSC 667", "Internet Application Design"), candidate("CSC 675", "Database Systems", 0.6)] });
 });
@@ -103,4 +104,36 @@ test("no options are requested while the roadmap is still being built", async ()
 test("closed when there is no slot", () => {
   render(<CourseDrawer slot={null} pathwayId={5} canSwap onClose={noop} onSwapped={noop} />);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+const geRow = () => slot({ codes: [], title: "GE Area 4: Social and Behavioral Sciences", swappable: false, slot_kind: "fixed" });
+const geCourse = (code: string, title: string) => ({ code, title, units_min: 3, units_max: 3, description: `About ${title}.`, attributes: [] as string[] });
+
+test("a GE row lists the courses that count for it, can be filtered, and can be marked completed", async () => {
+  geCourses.mockResolvedValue({ areas: ["4"], courses: [geCourse("SOC 100", "Intro Sociology"), geCourse("ANTH 110", "Cultural Anthropology")] });
+  const onToggle = vi.fn();
+  render(<CourseDrawer slot={geRow()} pathwayId={5} canSwap onClose={noop} onSwapped={noop} ge={{ done: false, onToggle, hint: "You have GE 4 credit on your transcript" }} />);
+  expect(await screen.findByText("Intro Sociology")).toBeInTheDocument();
+  expect(geCourses).toHaveBeenCalledWith(["4"]);
+  expect(screen.getByText("You have GE 4 credit on your transcript")).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Filter courses"), "anthro");
+  expect(screen.queryByText("Intro Sociology")).not.toBeInTheDocument();
+  expect(screen.getByText("Cultural Anthropology")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Mark as completed" }));
+  expect(onToggle).toHaveBeenCalledTimes(1);
+  expect(options).not.toHaveBeenCalled(); // GE rows are not swapped, only looked up
+});
+
+test("a GE row we cannot map to an area says so instead of showing an empty list", async () => {
+  render(<CourseDrawer slot={slot({ codes: [], title: "GE Area UD", swappable: false })} pathwayId={5} canSwap onClose={noop} onSwapped={noop} ge={{ done: false, onToggle: noop }} />);
+  expect(await screen.findByText(/don.t have a course list for this area/i)).toBeInTheDocument();
+  expect(geCourses).not.toHaveBeenCalled();
+});
+
+test("a done GE row can be undone", async () => {
+  geCourses.mockResolvedValue({ areas: ["4"], courses: [] });
+  const onToggle = vi.fn();
+  render(<CourseDrawer slot={geRow()} pathwayId={5} canSwap onClose={noop} onSwapped={noop} ge={{ done: true, onToggle }} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+  expect(onToggle).toHaveBeenCalledTimes(1);
 });

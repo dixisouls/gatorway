@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { useId } from "react";
 import { fmtUnits, termUnits } from "@/lib/format";
+import { creditHint, isGeSlot } from "@/lib/ge";
 import { groupChoices } from "@/lib/groups";
 import { revealDelays } from "@/lib/reveal";
 import type { AppliedEdit, Pathway, Slot } from "@/lib/types";
@@ -17,6 +18,9 @@ interface RoadmapProps {
   onOpen: (slot: Slot) => void;
   choices?: Record<string, string>; // "Select One" row id -> the code the student chose
   onChoose?: (headerId: string, code: string) => void;
+  done?: ReadonlySet<string>; // GE rows the student marked completed
+  onToggleDone?: (slotId: string) => void;
+  creditAreas?: string[]; // GE areas the transcript already has credit for
 }
 
 /** A soft S-curve that drifts from one term to the next, alternating sides; draws itself in when scrolled into view. */
@@ -42,7 +46,7 @@ function TermArrow({ index }: { index: number }) {
   );
 }
 
-export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generating, onOpen, choices = {}, onChoose = () => {} }: RoadmapProps) {
+export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generating, onOpen, choices = {}, onChoose = () => {}, done, onToggleDone, creditAreas = [] }: RoadmapProps) {
   const terms = [...pathway.terms].sort((a, b) => a.position - b.position).filter((t) => t.slots.length > 0);
   const delays = revealDelays(terms);
 
@@ -94,6 +98,9 @@ export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generatin
                   generating={generating && shown.swappable && shown.status === "planned"}
                   enterDelay={delays[slot.slot_id] ?? 0}
                   onOpen={() => onOpen(slot)}
+                  done={done?.has(slot.slot_id)}
+                  onToggleDone={onToggleDone && isGeSlot(slot) ? () => onToggleDone(slot.slot_id) : undefined}
+                  hint={creditHint(slot, creditAreas)}
                 />
               );
             })}

@@ -46,3 +46,13 @@ export function groupByTerm(courses: TranscriptCourse[]): { term: string; course
     .map(([term, list]) => ({ term, courses: list }))
     .sort((a, b) => termRank(a.term) - termRank(b.term) || a.term.localeCompare(b.term));
 }
+
+export type CreditKind = "GE credit" | "Transfer credit" | "Not in the SFSU catalog";
+
+/** What an unmatched transcript line most likely is: a GE credit line, transfer credit (community-college style codes), or neither. */
+export function creditKind(c: TranscriptCourse): CreditKind | null {
+  if (!c.flagged) return null;
+  if (/^\s*GE\b/i.test(c.code)) return "GE credit";
+  const number = c.code.trim().split(/\s+/).pop() ?? "";
+  return /x/i.test(number) || number.replace(/\D/g, "").length < 3 ? "Transfer credit" : "Not in the SFSU catalog";
+}

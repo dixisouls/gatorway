@@ -10,9 +10,9 @@ const summary = {
   count: 2,
   courses: [
     { code: "CSC 101", grade: "A", term: "Fall 2023", flagged: false },
-    { code: "ENGL 114", grade: "A-", term: "Fall 2023", flagged: true },
+    { code: "ENGL 1A", title: "College Composition", grade: "A-", term: "Fall 2023", flagged: true },
   ],
-  flagged: ["ENGL 114"],
+  flagged: ["ENGL 1A"],
 };
 const pdf = () => new File(["%PDF-1.4"], "transcript.pdf", { type: "application/pdf" });
 const user = () => userEvent.setup({ applyAccept: false });
@@ -32,7 +32,8 @@ test("reads the transcript, lists the courses found and continues", async () => 
   const term = screen.getByRole("group", { name: "Fall 2023" }); // courses are listed under their term, not as loose chips
   expect(within(term).getByText("CSC 101")).toBeInTheDocument();
   expect(within(term).getByText("A-")).toBeInTheDocument();
-  expect(within(term).getByText(/not in the catalog/i)).toBeInTheDocument(); // ENGL 114 was flagged
+  expect(within(term).getByText("College Composition")).toBeInTheDocument(); // what the transcript calls it, so the student can check it
+  expect(within(term).getByText("Transfer credit")).toBeInTheDocument(); // described, not called an error
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(onDone).toHaveBeenCalled();
 });

@@ -2,7 +2,9 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
-import { readChoices, writeChoices } from "@/lib/choices";
+import { readChoices, readSet, writeChoices, writeSet } from "@/lib/choices";
+import { api } from "@/lib/api";
+import { creditHint, geAreas, isGeSlot } from "@/lib/ge";
 import { fmtUnits, shortRoadmapName } from "@/lib/format";
 import { swapDelays } from "@/lib/reveal";
 import type { SavedPathway } from "@/lib/types";
@@ -40,6 +42,23 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(new Set());
   const choiceKey = `gatorway.choices.${spec.programId}.${spec.roadmapId ?? "default"}`;
   const [choices, setChoices] = useState<Record<string, string>>(() => readChoices(choiceKey));
+  const doneKey = `gatorway.done.${spec.programId}.${spec.roadmapId ?? "default"}`;
+  const [done, setDone] = useState<ReadonlySet<string>>(() => readSet(doneKey));
+  const [creditAreas, setCreditAreas] = useState<string[]>([]);
+
+  // GE credit lines on the transcript ("GE 4") hint at which GE rows may already be met.
+  useEffect(() => {
+    let alive = true;
+    api
+      .myCourses()
+      .then((r) => {
+        if (alive) setCreditAreas([...new Set(r.courses.filter((c) => c.flagged).flatMap((c) => geAreas(c.code)))]);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // AI picks land one after another once the real result arrives (saved roadmaps skip the show).
   useEffect(() => {
@@ -56,6 +75,15 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
 
   const settled = run.phase === "done" || run.phase === "error";
   const personalising = run.phase === "personalising" && !!spec.interest;
+
+  function toggleDone(slotId: string) {
+    setDone((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(slotId)) next.add(slotId);
+      writeSet(doneKey, next);
+      return next;
+    });
+  }
 
   function onSwapped(updated: SavedPathway, slotId: string) {
     run.replaceResult(updated);
@@ -169,6 +197,9 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
           isRevealed={(id) => !!spec.saved || revealed.has(id)}
           generating={personalising}
           onOpen={(s) => setOpenId(s.slot_id)}
+          done={done}
+          onToggleDone={toggleDone}
+          creditAreas={creditAreas}
           choices={choices}
           onChoose={(headerId, code) =>
             setChoices((prev) => {
@@ -187,6 +218,7 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
         canSwap={run.phase === "done" && result !== null}
         onClose={() => setOpenId(null)}
         onSwapped={onSwapped}
+        ge={openSlot && isGeSlot(openSlot) ? { done: done.has(openSlot.slot_id), onToggle: () => toggleDone(openSlot.slot_id), hint: creditHint(openSlot, creditAreas) } : undefined}
       />
     </div>
   );

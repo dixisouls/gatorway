@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { groupByTerm } from "@/lib/format";
+import { creditKind, groupByTerm } from "@/lib/format";
 import type { TranscriptSummary } from "@/lib/types";
 import { RotatingWords } from "./RotatingWords";
 import { Button } from "./ui/Button";
@@ -127,7 +127,8 @@ export function TranscriptStep({ onDone, minMs = 1800 }: { onDone: () => void; m
                         <li key={c.code} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                           <span className="flex flex-wrap items-center gap-2">
                             <span className="font-medium text-ink">{c.code}</span>
-                            {c.flagged && <span className="rounded-full bg-gold-soft px-2 py-0.5 text-xs text-[#6b5a2a]">Not in the catalog · won&apos;t count</span>}
+                            {c.title && <span className="text-muted">{c.title}</span>}
+                            {creditKind(c) && <span className="rounded-full bg-gold-soft px-2 py-0.5 text-xs text-[#6b5a2a]">{creditKind(c)}</span>}
                           </span>
                           {c.grade && <span className="rounded-full bg-purple-soft/70 px-2.5 py-0.5 text-xs text-purple">{c.grade}</span>}
                         </li>
@@ -136,6 +137,11 @@ export function TranscriptStep({ onDone, minMs = 1800 }: { onDone: () => void; m
                   </motion.div>
                 ))}
               </div>
+              {summary.courses.some((c) => c.flagged) && (
+                <p className="mt-5 text-center text-sm text-muted">
+                  Transfer and GE credit isn&apos;t matched to SFSU courses yet. On your roadmap you can mark the matching GE requirements as completed.
+                </p>
+              )}
               <div className="mt-8 flex justify-center">
                 <Button onClick={onDone}>Continue</Button>
               </div>

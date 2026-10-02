@@ -92,8 +92,29 @@ test("a card the AI is still working on is marked busy", () => {
 });
 
 test("a plain requirement row with nothing to show is not clickable", () => {
-  render(<CourseCard slot={slot({ codes: [], title: "GE Area 4", swappable: false })} {...base} />);
-  expect(screen.getByRole("button", { name: /GE Area 4/ })).toBeDisabled();
+  render(<CourseCard slot={slot({ codes: [], title: "Free choice", swappable: false })} {...base} />);
+  expect(screen.getByRole("button", { name: /Free choice/ })).toBeDisabled();
+});
+
+const geSlot = () => slot({ codes: [], title: "GE Area 4: Social and Behavioral Sciences", units: 3 });
+
+test("a GE requirement row can be marked completed, and undone", async () => {
+  const onToggleDone = vi.fn();
+  const { rerender } = render(<CourseCard slot={geSlot()} {...base} onToggleDone={onToggleDone} />);
+  await userEvent.click(screen.getByRole("button", { name: "Mark as completed" }));
+  expect(onToggleDone).toHaveBeenCalledTimes(1);
+  rerender(<CourseCard slot={geSlot()} {...base} done onToggleDone={onToggleDone} />);
+  expect(screen.getByText(/Completed/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+  expect(onToggleDone).toHaveBeenCalledTimes(2);
+});
+
+test("a GE row opens its course list when clicked and shows when the transcript already has credit", async () => {
+  const onOpen = vi.fn();
+  render(<CourseCard slot={geSlot()} {...base} onOpen={onOpen} hint="You have GE 4 credit on your transcript" />);
+  expect(screen.getByText("You have GE 4 credit on your transcript")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /GE Area 4/ }));
+  expect(onOpen).toHaveBeenCalledTimes(1);
 });
 
 test("a zero-unit option does not show a confusing 0 units pill", () => {
