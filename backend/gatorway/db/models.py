@@ -29,6 +29,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str | None] = mapped_column(String(255))  # unused since sign-in moved to Firebase; kept for accounts made before
     firebase_uid: Mapped[str | None] = mapped_column(String(128), unique=True, index=True)
+    transcript_program: Mapped[str | None] = mapped_column(Text)  # the degree as printed on their last transcript
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

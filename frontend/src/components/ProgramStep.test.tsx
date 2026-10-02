@@ -69,3 +69,27 @@ test("picking a degree clears the list so only that choice and its roadmap optio
   expect(await screen.findByText(cs.title)).toBeInTheDocument();
   expect(screen.getByLabelText("Search programs")).toBeInTheDocument();
 });
+
+test("opens with the confirmed degree already chosen: no list, just its roadmap options", async () => {
+  roadmaps.mockResolvedValue({
+    roadmaps: [
+      { id: 1, name: `${cs.title} Roadmap - Quantitative Reasoning Category 1/2`, is_default: false, total_units_required: 120, major_units: 74 },
+      { id: 2, name: `${cs.title} Roadmap Quantitative Reasoning Category 3/4`, is_default: true, total_units_required: 120, major_units: 74 },
+    ],
+  });
+  const onChosen = vi.fn();
+  render(<ProgramStep initial={cs} onChosen={onChosen} />);
+  expect(screen.getByText(cs.title)).toBeInTheDocument();
+  expect(screen.queryByLabelText("Search programs")).not.toBeInTheDocument();
+  expect(await screen.findByRole("radio", { name: /Category 3\/4/ })).toBeChecked();
+  expect(roadmaps).toHaveBeenCalledWith(cs.id);
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(onChosen).toHaveBeenCalledWith({ id: 605, title: cs.title, roadmapId: 2 });
+});
+
+test("a confirmed degree can still be changed", async () => {
+  roadmaps.mockResolvedValue({ roadmaps: [] });
+  render(<ProgramStep initial={cs} onChosen={() => {}} />);
+  await userEvent.click(screen.getByRole("button", { name: "Change program" }));
+  expect(await screen.findByLabelText("Search programs")).toBeInTheDocument();
+});

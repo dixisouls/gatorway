@@ -31,8 +31,8 @@ class SpyRedactor:
         return "[REDACTED]\n" + text
 
 
-def transcript(*courses, sfsu=True):
-    return ExtractedTranscript(is_sfsu_transcript=sfsu, courses=[ExtractedCourse(code=c, grade=g) for c, g in courses])
+def transcript(*courses, sfsu=True, program=None):
+    return ExtractedTranscript(is_sfsu_transcript=sfsu, program=program, courses=[ExtractedCourse(code=c, grade=g) for c, g in courses])
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ def test_reupload_replaces_the_saved_list_and_get_and_delete_work(make_state, ma
     upload(client, h, make_pdf(TEXT))
     assert [c["code"] for c in client.get("/me/courses", headers=h).json()["courses"]] == ["ART 101"]
     assert client.delete("/me/courses", headers=h).status_code == 204
-    assert client.get("/me/courses", headers=h).json() == {"count": 0, "courses": [], "flagged": []}
+    assert client.get("/me/courses", headers=h).json() == {"count": 0, "courses": [], "flagged": [], "program": {"raw": None, "candidates": []}}
 
 
 def test_non_sfsu_transcript_is_rejected_and_the_saved_list_is_kept(make_state, make_pdf, catalog):
@@ -118,7 +118,7 @@ def test_extractor_outage_is_a_502_and_changes_nothing(make_state, make_pdf, cat
 def test_a_new_student_with_no_passed_courses_gets_an_empty_list_not_an_error(make_state, make_pdf, catalog):
     client = make_client(make_state, FakeExtractor(transcript(("CSC 101", "IP"))))
     r = upload(client, auth(client), make_pdf(TEXT))
-    assert r.status_code == 201 and r.json() == {"count": 0, "courses": [], "flagged": []}
+    assert r.status_code == 201 and r.json() == {"count": 0, "courses": [], "flagged": [], "program": {"raw": None, "candidates": []}}
 
 
 def test_endpoints_require_a_login_and_uploads_are_rate_limited(make_state, make_pdf):
@@ -154,3 +154,35 @@ def test_when_redaction_fails_nothing_is_sent_to_the_extractor(make_state, make_
     r = upload(client, auth(client), make_pdf(TEXT))
     assert r.status_code == 503 and r.json()["error"]["code"] == "redaction_unavailable"
     assert ex.received == []  # fail closed: unredacted text never leaves
+
+
+def test_the_degree_on_the_transcript_is_matched_to_our_programs_and_remembered(make_state, make_pdf, catalog):
+    ex = FakeExtractor(transcript(("CSC 101", "A"), program="B.S. Mini Computer Science"))
+    client = make_client(make_state, ex)
+    h = auth(client)
+    body = upload(client, h, make_pdf(TEXT)).json()
+    assert body["program"]["raw"] == "B.S. Mini Computer Science"
+    top = body["program"]["candidates"][0]
+    assert top["title"] == "Bachelor of Science in Mini Computer Science" and top["level"] == "undergraduate" and 0 < top["score"] <= 1
+    again = client.get("/me/courses", headers=h).json()
+    assert again["program"]["raw"] == "B.S. Mini Computer Science" and again["program"]["candidates"][0]["id"] == top["id"]
+
+
+def test_a_transcript_that_shows_no_degree_has_no_candidates(make_state, make_pdf, catalog):
+    client = make_client(make_state, FakeExtractor(transcript(("CSC 101", "A"))))
+    body = upload(client, auth(client), make_pdf(TEXT)).json()
+    assert body["program"] == {"raw": None, "candidates": []}
+
+
+def test_a_degree_we_do_not_offer_is_remembered_but_matches_nothing(make_state, make_pdf, catalog):
+    client = make_client(make_state, FakeExtractor(transcript(("CSC 101", "A"), program="Underwater Basket Weaving")))
+    body = upload(client, auth(client), make_pdf(TEXT)).json()
+    assert body["program"] == {"raw": "Underwater Basket Weaving", "candidates": []}
+
+
+def test_deleting_the_saved_courses_also_forgets_the_degree(make_state, make_pdf, catalog):
+    client = make_client(make_state, FakeExtractor(transcript(("CSC 101", "A"), program="B.S. Mini Computer Science")))
+    h = auth(client)
+    upload(client, h, make_pdf(TEXT))
+    assert client.delete("/me/courses", headers=h).status_code == 204
+    assert client.get("/me/courses", headers=h).json()["program"] == {"raw": None, "candidates": []}

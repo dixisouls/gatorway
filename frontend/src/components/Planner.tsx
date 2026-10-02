@@ -5,6 +5,8 @@ import { useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { RunSpec } from "@/lib/usePathwayRun";
+import type { ProgramBrief, ProgramCandidate, TranscriptSummary } from "@/lib/types";
+import { DegreeConfirm } from "./DegreeConfirm";
 import { HistoryPanel } from "./HistoryPanel";
 import { InterestStep } from "./InterestStep";
 import { ProgramStep, type ChosenProgram } from "./ProgramStep";
@@ -29,7 +31,17 @@ export function Planner() {
   const [spec, setSpec] = useState<RunSpec | null>(null);
   const [history, setHistory] = useState(false);
   const [notice, setNotice] = useState("");
+  // The degree found on the transcript: asked about once; yes preselects it in the program step, no leaves the choice to the student.
+  const [proposal, setProposal] = useState<{ raw: string; candidates: ProgramCandidate[] } | null>(null);
+  const [confirmed, setConfirmed] = useState<ProgramBrief | null>(null);
   const counter = useRef(0);
+
+  function transcriptDone(summary: TranscriptSummary | null) {
+    const found = summary?.program;
+    setConfirmed(null);
+    setProposal(found && found.candidates.length > 0 ? { raw: found.raw ?? "", candidates: found.candidates } : null);
+    setStep("program");
+  }
 
   function start(next: Omit<RunSpec, "key">) {
     counter.current += 1;
@@ -75,8 +87,12 @@ export function Planner() {
           <AnimatePresence mode="wait">
             <motion.div className={step === "roadmap" ? "" : "setup-body"} key={step === "roadmap" ? spec?.key : step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: .2 }}>
               {step !== "roadmap" && <div className="setup-form">
-                {step === "transcript" && <TranscriptStep onDone={() => setStep("program")} onSkip={() => setStep("program")} />}
-                {step === "program" && <ProgramStep onChosen={(p) => { setProgram(p); setStep("interest"); }} />}
+                {step === "transcript" && <TranscriptStep onDone={transcriptDone} onSkip={() => { setProposal(null); setConfirmed(null); setStep("program"); }} />}
+                {step === "program" && proposal ? (
+                  <DegreeConfirm raw={proposal.raw} candidates={proposal.candidates} onYes={(p) => { setConfirmed(p); setProposal(null); }} onNo={() => { setConfirmed(null); setProposal(null); }} />
+                ) : step === "program" ? (
+                  <ProgramStep key={confirmed?.id ?? "choose"} initial={confirmed} onChosen={(p) => { setProgram(p); setStep("interest"); }} />
+                ) : null}
                 {step === "interest" && program && <InterestStep programTitle={program.title} onSubmit={(interest) => start({ programId: program.id, roadmapId: program.roadmapId, interest })} />}
               </div>}
               {step !== "roadmap" && <SetupGuide step={step} />}

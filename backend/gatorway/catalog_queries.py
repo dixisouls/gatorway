@@ -22,6 +22,10 @@ def list_programs(db: Session, query: str = "", level: str = "", limit: int = 20
     return [_brief(p) for p in db.scalars(stmt)]
 
 
+def all_programs(db: Session) -> list[dict]:
+    return [_brief(p) for p in db.scalars(select(Program).order_by(Program.title))]
+
+
 def program_detail(db: Session, program_id: int) -> dict | None:
     p = db.get(Program, program_id)
     if p is None:

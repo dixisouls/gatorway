@@ -135,10 +135,15 @@ export interface TranscriptCourse {
   flagged: boolean;
 }
 
+export interface ProgramCandidate extends ProgramBrief {
+  score: number; // 0-1: how well it matches the degree printed on the transcript
+}
+
 export interface TranscriptSummary {
   count: number;
   courses: TranscriptCourse[];
   flagged: string[];
+  program?: { raw: string | null; candidates: ProgramCandidate[] }; // the degree the transcript shows, matched to our programs
 }
 
 export interface User {
