@@ -102,3 +102,12 @@ Fresh reviewer (opus) found 1 critical + 6 important issues; all fixed test-firs
 - **Gemini auth via ADC:** `llm/client.py` uses Vertex AI with your gcloud ADC login (`GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_PROJECT`), or an API key. Verified live: generation + embeddings worked through ADC.
 - **Local embeddings:** Gemini embeddings hit the per-minute quota, so embeddings now run locally (`LocalEmbedder`, sentence-transformers `BAAI/bge-base-en-v1.5`, 768-dim, default `EMBED_PROVIDER=local`), with a tqdm progress bar. You ran the ingest: 4,986 courses embedded, identity `local:BAAI/bge-base-en-v1.5:768`. I checked real searches ("writing poetry" → Creative Writing, "database design" → ISYS/CSC database courses).
 - **Still open:** real Gemini edit loop (needs a live run with ADC), Cloud Run deployment, `scripts/smoke_e2e.py`.
+
+## Live testing fixes (after the first real runs)
+- **Vertex location:** the newest Gemini models are served from `global`; `us-central1` returned 404. `.env` now uses `GOOGLE_CLOUD_LOCATION=global`.
+- **Speed:** thinking is off by default (`GEMINI_THINKING_LEVEL=off`; `MINIMAL` is rejected by gemini-3.8-flash). Personalisation timeout is `EDIT_TIMEOUT_S` (default 120).
+- **Tool loop:** the model used one round per slot and ran out of rounds, which showed as "no electives fit". The prompt now asks for parallel searches, the limit is 10 rounds, and an exhausted loop gets one closing call without tools to produce its answer.
+- **Major units:** roadmap tags like "Core Computer Science Requirement" never say "major", giving a false "37 of 74 units" warning. Courses listed in the program's non-GE requirement sections now count toward the major. Needs a re-ingest (done).
+- **PDF text:** `layout=True` so course, title and grade columns stay apart; a bad page no longer loses the transcript.
+- **Cache:** cleared the Redis `embq`, `intent` and `pathway` entries (sessions and rate limits left alone).
+- **Smoke test result:** signup, transcript, program, and a Gemini personalisation (CSC 667 for a web-dev interest) all work against the real stack with no warnings. The transcript extractor was not deterministic across runs (MATH 226 missing once).

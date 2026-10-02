@@ -67,3 +67,24 @@ async def test_http_extractor_turns_connection_failures_into_extractor_error():
 
     with pytest.raises(ExtractorError):
         await mock_extractor(boom).extract("x")
+
+
+def _two_column_pdf() -> bytes:
+    import io
+
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf)
+    c.drawString(50, 750, "CSC 101   Introduction to Computing")
+    c.drawString(450, 750, "A")
+    c.save()
+    return buf.getvalue()
+
+
+def test_pdf_text_keeps_the_column_gap_between_course_and_grade():
+    from gatorway.transcripts.pdf import extract_text
+
+    line = next(l for l in extract_text(_two_column_pdf()).splitlines() if "CSC 101" in l)
+    assert "Computing" in line and line.rstrip().endswith("A")
+    assert len(line) - len(line.rstrip("A").rstrip()) - 1 >= 5  # layout=True keeps a wide gap before the grade column
