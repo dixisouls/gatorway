@@ -15,11 +15,12 @@ export interface CourseCardProps {
   generating: boolean; // the AI is still deciding this slot
   enterDelay: number;
   onOpen: () => void; // opens the options sheet for this slot
+  selectable?: { selected: boolean; onSelect: () => void }; // an option inside a "Choose one" group
 }
 
 const shimmer = "animate-shimmer bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]";
 
-export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOpen }: CourseCardProps) {
+export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOpen, selectable }: CourseCardProps) {
   const passed = slot.status === "passed";
   const open = slot.codes.length === 0;
   const clickable = !open || slot.swappable;
@@ -41,7 +42,9 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
     };
   }, [expanded, codesKey, details]);
 
-  const tone = isPick
+  const tone = selectable?.selected
+    ? "border-purple/40 bg-gradient-to-br from-purple-soft/80 to-white ring-2 ring-purple/20"
+    : isPick
     ? "border-gold/40 bg-gradient-to-br from-gold-soft/80 to-white"
     : passed
       ? "border-purple/10 bg-purple-soft/50"
@@ -68,7 +71,7 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
       >
         <span className="flex w-full items-start justify-between gap-2">
           <span className="text-[11px] font-medium uppercase tracking-wider text-muted">{open ? (kind ?? "Open slot") : slotCodes(slot)}</span>
-          <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-muted ring-1 ring-line">{fmtUnits(slot.units)} units</span>
+          {slot.units > 0 && <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-muted ring-1 ring-line">{fmtUnits(slot.units)} units</span>}
         </span>
         <AnimatePresence mode="wait" initial={false}>
           <motion.span
@@ -95,6 +98,18 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
         </span>
         {isPick && applied?.reason && !expanded && <span className="mt-2 line-clamp-2 block text-xs leading-relaxed text-muted">{applied.reason}</span>}
       </button>
+
+      {selectable && (
+        <div className="px-4 pb-3">
+          {selectable.selected ? (
+            <span className="inline-flex items-center rounded-full bg-purple px-3 py-1 text-xs text-white">✓ Your choice</span>
+          ) : (
+            <Button variant="soft" className="!px-4 !py-1.5 text-xs" onClick={selectable.onSelect}>
+              Choose this
+            </Button>
+          )}
+        </div>
+      )}
 
       <AnimatePresence initial={false}>
         {expanded && (

@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { useId } from "react";
 import { fmtUnits, termUnits } from "@/lib/format";
+import { groupChoices } from "@/lib/groups";
 import { revealDelays } from "@/lib/reveal";
 import type { AppliedEdit, Pathway, Slot } from "@/lib/types";
 import { CourseCard } from "./CourseCard";
@@ -14,6 +15,8 @@ interface RoadmapProps {
   isRevealed: (slotId: string) => boolean; // has the pick for this slot landed yet?
   generating: boolean; // the AI is still working
   onOpen: (slot: Slot) => void;
+  choices?: Record<string, string>; // "Select One" row id -> the code the student chose
+  onChoose?: (headerId: string, code: string) => void;
 }
 
 /** A soft S-curve that drifts from one term to the next, alternating sides; draws itself in when scrolled into view. */
@@ -39,7 +42,7 @@ function TermArrow({ index }: { index: number }) {
   );
 }
 
-export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generating, onOpen }: RoadmapProps) {
+export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generating, onOpen, choices = {}, onChoose = () => {} }: RoadmapProps) {
   const terms = [...pathway.terms].sort((a, b) => a.position - b.position).filter((t) => t.slots.length > 0);
   const delays = revealDelays(terms);
 
@@ -53,7 +56,33 @@ export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generatin
             <span className="text-sm text-muted">{fmtUnits(termUnits(term))} units</span>
           </div>
           <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {term.slots.map((slot) => {
+            {groupChoices(term.slots).map((item) => {
+              if (item.kind === "choice") {
+                const chosen = choices[item.header.slot_id] ?? item.options.find((o) => o.status === "passed")?.codes[0];
+                return (
+                  <div key={item.header.slot_id} className="rounded-[1.6rem] border border-dashed border-purple/25 bg-white/40 p-4 sm:col-span-2 lg:col-span-3">
+                    <div className="mb-1 flex items-baseline justify-between px-1">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted">Choose one</p>
+                      <span className="text-sm text-muted">{fmtUnits(item.header.units)} units</span>
+                    </div>
+                    <h4 className="mb-3 px-1 font-serif text-lg text-ink">{item.header.title.replace(/:\s*$/, "")}</h4>
+                    <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {item.options.map((o) => (
+                        <CourseCard
+                          key={o.slot_id}
+                          slot={o}
+                          isPick={false}
+                          generating={false}
+                          enterDelay={delays[item.header.slot_id] ?? 0}
+                          onOpen={() => onOpen(o)}
+                          selectable={{ selected: chosen === o.codes[0], onSelect: () => onChoose(item.header.slot_id, o.codes[0]) }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              const slot = item.slot;
               const revealed = isRevealed(slot.slot_id);
               const shown = slot.status === "replaced" && !revealed ? (baselineSlots[slot.slot_id] ?? slot) : slot;
               return (

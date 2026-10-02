@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
+import { readChoices, writeChoices } from "@/lib/choices";
 import { fmtUnits, shortRoadmapName } from "@/lib/format";
 import { swapDelays } from "@/lib/reveal";
 import type { SavedPathway } from "@/lib/types";
@@ -37,6 +38,8 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(new Set());
+  const choiceKey = `gatorway.choices.${spec.programId}.${spec.roadmapId ?? "default"}`;
+  const [choices, setChoices] = useState<Record<string, string>>(() => readChoices(choiceKey));
 
   // AI picks land one after another once the real result arrives (saved roadmaps skip the show).
   useEffect(() => {
@@ -166,6 +169,14 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
           isRevealed={(id) => !!spec.saved || revealed.has(id)}
           generating={personalising}
           onOpen={(s) => setOpenId(s.slot_id)}
+          choices={choices}
+          onChoose={(headerId, code) =>
+            setChoices((prev) => {
+              const next = { ...prev, [headerId]: code };
+              writeChoices(choiceKey, next);
+              return next;
+            })
+          }
         />
       )}
 

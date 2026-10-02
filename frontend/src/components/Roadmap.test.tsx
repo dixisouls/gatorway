@@ -59,3 +59,24 @@ test("clicking an open elective slot hands it to the caller for its options", as
   await userEvent.click(screen.getByRole("button", { name: /Major Elective/ }));
   expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ slot_id: "o" }));
 });
+
+test("a Select One row and its alternatives show as one Choose one group where an option can be chosen", async () => {
+  const onChoose = vi.fn();
+  const choicePath: Pathway = {
+    ...pathway,
+    terms: [{ position: 0, label: "First Semester", slots: [
+      slot({ slot_id: "h", codes: [], title: "Select One (Major Core):", units: 4 }),
+      slot({ slot_id: "c1", codes: ["CHEM 115"], title: "General Chemistry I", units: 0 }),
+      slot({ slot_id: "c2", codes: ["CHEM 180"], title: "Chemistry for Energy and the Environment", units: 0 }),
+      slot({ slot_id: "n", codes: ["ENGR 100"], title: "Introduction to Engineering" }),
+    ] }],
+  };
+  render(<Roadmap {...props} pathway={choicePath} baselineSlots={{}} isRevealed={() => true} choices={{ h: "CHEM 180" }} onChoose={onChoose} />);
+  expect(screen.getByText("Choose one")).toBeInTheDocument();
+  expect(screen.getByText("General Chemistry I")).toBeInTheDocument();
+  expect(screen.getAllByText("✓ Your choice")).toHaveLength(1); // CHEM 180, remembered
+  await userEvent.click(screen.getByRole("button", { name: "Choose this" }));
+  expect(onChoose).toHaveBeenCalledWith("h", "CHEM 115");
+  expect(screen.getByText("4 units")).toBeInTheDocument(); // the group carries the units, not each option
+  expect(screen.queryByText("0 units")).not.toBeInTheDocument();
+});

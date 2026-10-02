@@ -95,3 +95,17 @@ test("a plain requirement row with nothing to show is not clickable", () => {
   render(<CourseCard slot={slot({ codes: [], title: "GE Area 4", swappable: false })} {...base} />);
   expect(screen.getByRole("button", { name: /GE Area 4/ })).toBeDisabled();
 });
+
+test("a zero-unit option does not show a confusing 0 units pill", () => {
+  render(<CourseCard slot={slot({ units: 0 })} {...base} />);
+  expect(screen.queryByText("0 units")).not.toBeInTheDocument();
+});
+
+test("an option in a Choose one group can be chosen and shows it was", async () => {
+  const onSelect = vi.fn();
+  const { rerender } = render(<CourseCard slot={slot({ units: 0 })} {...base} selectable={{ selected: false, onSelect }} />);
+  await userEvent.click(screen.getByRole("button", { name: "Choose this" }));
+  expect(onSelect).toHaveBeenCalledTimes(1);
+  rerender(<CourseCard slot={slot({ units: 0 })} {...base} selectable={{ selected: true, onSelect }} />);
+  expect(screen.getByText("✓ Your choice")).toBeInTheDocument();
+});

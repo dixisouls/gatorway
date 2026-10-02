@@ -127,3 +127,4 @@ Built from `docs/superpowers/plans/2026-10-02-frontend.md`, test-first, one comm
 - **Transcript result** is now a structured list grouped by term (course, grade, and a "not in the catalog" tag), not loose chips.
 - **Cards expand in place** (description, prerequisites, attributes, why it was picked, "See other options"); open elective slots still go straight to the options sheet.
 - **Term connectors** are flowing S-curves that alternate sides and draw themselves in, instead of straight arrows.
+- **"Select One" rows:** the roadmap lists a "Select One" row and its alternatives as separate rows with 0 units; they showed as unrelated cards and the "Select One" row had no options. They now fold into one "Choose one" group (units on the group, alternatives as expandable cards the student can choose). Known limit: the choice is remembered in the browser only (`localStorage`), not saved or checked by the server; the validator still treats all alternatives as planned.
