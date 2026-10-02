@@ -246,3 +246,50 @@ def test_avoid_list_is_bounded(world):
     h, _ = headers(client)
     r = client.post("/pathways", json={"program_id": pid, "interest": "x", "avoid": [f"C {i}" for i in range(21)]}, headers=h)
     assert r.status_code == 422
+
+
+def _passed(db, uid, *codes):
+    for c in codes:
+        db.add(UserCourse(user_id=uid, raw_code=c))
+    db.commit()
+
+
+def test_slot_options_list_valid_alternatives_for_a_swappable_slot(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    r = client.get(f"/pathways/{saved['id']}/slots/{free['slot_id']}/options", params={"query": "relational databases"}, headers=h)
+    assert r.status_code == 200 and r.json()["slot_id"] == free["slot_id"] and r.json()["query"] == "relational databases"
+    codes = [c["code"] for c in r.json()["candidates"]]
+    assert "CSC 601" in codes and "CSC 101" not in codes and "CSC 850" not in codes  # planned / graduate courses are never offered
+    first = r.json()["candidates"][0]
+    assert {"code", "title", "units", "similarity", "summary", "warnings"} <= set(first)
+
+
+def test_slot_options_without_a_query_use_the_saved_interest(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    r = client.get(f"/pathways/{saved['id']}/slots/{free['slot_id']}/options", headers=h)
+    assert r.status_code == 200 and r.json()["query"] == "drawing art"  # the stub intent's topics + keywords
+
+
+def test_slot_options_refuse_fixed_slots_unknown_slots_and_other_users(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    fixed = next(s for s in slots(saved) if not s["swappable"])
+    base = f"/pathways/{saved['id']}/slots"
+    bad = client.get(f"{base}/{fixed['slot_id']}/options", headers=h)
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_slot"
+    assert client.get(f"{base}/nope/options", headers=h).status_code == 404
+    other, _ = headers(client, "other@sfsu.edu")
+    assert client.get(f"{base}/{fixed['slot_id']}/options", headers=other).status_code == 404
+    assert client.get("/pathways/99999/slots/x/options", headers=h).status_code == 404

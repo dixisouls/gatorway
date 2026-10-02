@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from gatorway.cache.store import Cache, CacheUnavailable
 from gatorway.engine.models import Catalog, DroppedEdit, Edit, Pathway
-from gatorway.engine.validator import validate_edits
+from gatorway.engine.validator import reopen_slot, validate_edits
 
 from .ports import Intent, LlmPort
 
@@ -78,6 +78,20 @@ class PathwayService:
         try:
             async with self._mcp_factory() as mcp:
                 return await self._build_baseline(mcp, program_id, roadmap_id, passed)
+        except ServiceError:
+            raise
+        except Exception as e:
+            log.exception("pathway tools unavailable")
+            raise ServiceError("pathway tools are unavailable") from e
+
+    async def options(self, *, pathway: Pathway, passed: list[str], slot_id: str, query: str, limit: int = 8) -> list[dict]:
+        """Courses that could take one slot. Uses the same search the model uses, so every candidate already respects the
+        slot's allowed list, level, units and prerequisites."""
+        try:
+            async with self._mcp_factory() as mcp:
+                opened = await self._call(mcp, "open_session", {"pathway": reopen_slot(pathway, slot_id).model_dump(mode="json"), "passed_codes": passed})
+                data = await self._call(mcp, "search_courses", {"session_id": opened["session_id"], "slot_id": slot_id, "query": query, "limit": limit})
+                return list(data.get("candidates", []))
         except ServiceError:
             raise
         except Exception as e:

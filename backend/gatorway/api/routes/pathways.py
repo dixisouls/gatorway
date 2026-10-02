@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from gatorway.db.models import SavedPathway, User
 from gatorway.engine.repository import data_version, user_passed_codes
-from gatorway.llm.orchestrator import ServiceError
+from gatorway.llm.orchestrator import PathwayResult, ServiceError
 
 from ..deps import current_user, get_db, get_state, user_rate_limit
 from ..errors import ApiError
@@ -79,9 +79,38 @@ def list_pathways(user: User = Depends(current_user), db: Session = Depends(get_
     return {"pathways": [{"id": r.id, "program_id": r.program_id, "interest": r.interest_raw, "created_at": r.created_at.isoformat()} for r in rows]}
 
 
-@router.get("/{pathway_id}")
-def get_pathway(pathway_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def _owned(db: Session, user: User, pathway_id: int) -> SavedPathway:
     row = db.scalar(select(SavedPathway).where(SavedPathway.id == pathway_id, SavedPathway.user_id == user.id))
     if row is None:
         raise ApiError(404, "not_found", f"Pathway {pathway_id} was not found.")
+    return row
+
+
+@router.get("/{pathway_id}")
+def get_pathway(pathway_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    row = _owned(db, user, pathway_id)
     return {"id": row.id, **row.result}
+
+
+@router.get("/{pathway_id}/slots/{slot_id}/options", dependencies=[Depends(user_rate_limit("options", 120, 3600))])
+async def slot_options(
+    pathway_id: int, slot_id: str, query: str = Query("", max_length=200), limit: int = Query(8, ge=1, le=15),
+    user: User = Depends(current_user), db: Session = Depends(get_db), state: AppState = Depends(get_state),
+):
+    row = _owned(db, user, pathway_id)
+    if state.pathway_service is None:
+        raise ApiError(503, "pathway_unavailable", "Pathway planning is not configured.")
+    result = PathwayResult.model_validate(row.result)
+    text = query.strip()
+    if not text and result.intent is not None and result.intent.specialization:
+        text = result.intent.search_text()
+    if not text:
+        found = result.pathway.find_slot(slot_id)
+        text = found[1].title if found else slot_id
+    try:
+        candidates = await state.pathway_service.options(
+            pathway=result.pathway, passed=user_passed_codes(db, user.id), slot_id=slot_id, query=text, limit=limit
+        )
+    except ServiceError as e:
+        raise _service_error(e)
+    return {"slot_id": slot_id, "query": text, "candidates": candidates}

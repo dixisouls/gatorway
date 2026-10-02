@@ -120,3 +120,12 @@ def validate_edits(baseline: Pathway, edits: list[Edit], passed: set[str], catal
             warnings.append(f"{info.code}: {w}")
     warnings.extend(unit_warnings(current))
     return EditsReport(pathway=current, applied=applied, dropped=dropped, warnings=warnings)
+
+
+def reopen_slot(pathway: Pathway, slot_id: str) -> Pathway:
+    """A slot an earlier swap already replaced can be changed again: on a copy, treat it as open for the next edit."""
+    new = pathway.model_copy(deep=True)
+    found = new.find_slot(slot_id)
+    if found is not None and found[1].status == "replaced":
+        found[1].status = "planned"
+    return new
