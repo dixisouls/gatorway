@@ -48,3 +48,9 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 - Added `cache/store.py` (intent/embedding/pathway caches with the spec's TTLs, single-flight lock, pathway sessions, fixed-window rate limiter; Redis outage = no cache / fail-open limiter, sessions raise `CacheUnavailable`).
 - TDD: tests failed (module missing), then 8/8 passed with fakeredis.
 - Also smoke-tested against the **real Redis container** (I started it): session TTL 1800s, lock exclusivity, intent TTL 7 days, rate limiter blocks after the limit, AOF persistence on. Test keys were removed afterwards.
+
+## Task 9 — MCP server and tools
+- Added the FastMCP server with auto-registered tool modules: `list_programs`, `get_program`, `get_roadmaps`, `get_requirements`, `build_baseline` + `open_session` (orchestrator-only), `get_baseline`, `validate_edits`, `search_courses`. Tools return `{"error": ...}` instead of raising, so Gemini can recover. `python -m gatorway.mcp_server` serves HTTP on 127.0.0.1:8001/mcp (needs `GEMINI_API_KEY` for query embeddings).
+- TDD: tests failed (module missing), then 11/11 passed (pool restriction, passed/planned exclusion, prerequisite feasibility filter, undergraduate level filter, no-embedding courses never returned, empty results, dry-run validation, cached query embeddings).
+- Real-data check (CS B.S. with core passed): 7 open swappable slots; major-elective search returns only courses from the program's own elective list, free-elective search returns undergraduate courses of any subject.
+- **Open item:** semantic quality needs real Gemini embeddings — set `GEMINI_API_KEY` in `.env` and run `python -m gatorway.ingest --embeddings gemini` (only changed courses are re-embedded). Right now the DB holds the offline word-overlap stand-in.
