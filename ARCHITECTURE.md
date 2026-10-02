@@ -4,12 +4,12 @@ Living document. Updated at every design step; sections cross-reference each oth
 (**Depends on** = look up, **Used by** = look down). Status per section:
 `Approved` · `Proposed` (awaiting sign-off) · `Draft`.
 
-Context: **hackathon project, everything runs on one laptop.** Not distributed. Backend + API only; no frontend yet.
+Context: **hackathon project, everything runs on one laptop.** Not distributed. A Next.js frontend ([§8](#8-frontend)) talks to the API.
 
 **Contents**
 [0 Goal](#0-goal) · [1 Runtime & flows](#1-runtime--request-flows) · [2 Data model](#2-data-model) ·
 [3 Ingestion](#3-ingestion-pipeline) · [4 MCP tools & pathway engine](#4-mcp-tools--pathway-engine) ·
-[5 API surface](#5-api-surface) · [6 Caching](#6-redis-caching) · [7 Security & privacy](#7-security--privacy) ·
+[5 API surface](#5-api-surface) · [6 Caching](#6-redis-caching) · [7 Security & privacy](#7-security--privacy) · [8 Frontend](#8-frontend) ·
 [Decisions](#decision-log) · [Open questions](#open-questions)
 
 ---
@@ -36,10 +36,10 @@ Status: **Approved** (hackathon-local runtime: D3, D4)
 | Redis 8 | `docker compose`; `redis:8-alpine`, `--appendonly yes`, named volume `gw_redisdata` at `/data` | 6379 |
 | FastAPI app | `uvicorn` (plain process) | 8000 |
 | FastMCP server | `python -m` (plain process, streamable HTTP) | 8001 |
-| Transcript extractor | **Google Cloud Run** (stateless; Gemini via Vertex AI) — hackathon requirement | — |
+| Transcript extractor | Stateless service (Gemini via Vertex AI); runs locally, deployable to Cloud Run | — |
 
 API and MCP share one Python package (DB + domain logic) — no duplicated code. The extractor is a separate small deploy folder.
-`frontend/` is intentionally not created (git cannot track an empty folder).
+`frontend/` holds the Next.js web app ([§8](#8-frontend)).
 
 ### 1.2 Flow A — transcript upload
 `POST /transcripts` (PDF) →
@@ -232,13 +232,11 @@ Depends on: [§2](#2-data-model), [§3](#3-ingestion-pipeline). Used by: [§5](#
 ## 5. API surface
 Status: **Proposed**
 
-FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a bearer JWT. Errors share one shape: `{"error": {"code", "message", "details"}}`.
+FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a Firebase ID token sent as a bearer token ([§7](#7-security--privacy)). Errors share one shape: `{"error": {"code", "message", "details"}}`.
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /auth/signup` `{email, password}` | — | creates the account; email must be `@sfsu.edu` or a subdomain such as `@mail.sfsu.edu` (text match, case-insensitive; never `evilsfsu.edu` or `sfsu.edu.evil.com`, D7), else 422 |
-| `POST /auth/login` | — | returns an access token |
-| `GET /auth/me` | yes | current user |
+| `GET /auth/me` | Firebase ID token | the signed-in student; the first call creates their local record. Sign-up and sign-in happen in Firebase, not here. Non-SFSU email → 403 `invalid_email`; with `REQUIRE_EMAIL_VERIFIED`, unverified → 403 `email_not_verified`; an email linked to a different Firebase account → 409 `account_conflict`; bad/expired token → 401 `invalid_token` (D7, D20) |
 | `POST /transcripts` (multipart PDF) | yes | [Flow A](#12-flow-a--transcript-upload). 201 with passed courses (+ flagged codes); 422 if unreadable or not an SFSU transcript |
 | `GET /me/courses` | yes | the saved passed-course list |
 | `DELETE /me/courses` | yes | delete the saved course list (privacy) |
@@ -246,15 +244,19 @@ FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a bearer JWT. Errors share one s
 | `GET /programs/{id}` | — | program details |
 | `GET /programs/{id}/roadmaps` | — | roadmaps; the common one is flagged |
 | `GET /programs/{id}/requirements` | — | degree-requirement sections |
-| `POST /pathways` `{program_id, roadmap_id?, interest?}` | yes | [Flow B](#13-flow-b--pathway). No `interest` ⇒ baseline only. Returns the pathway ([§4.1](#41-data-shapes)): terms and slots, applied edits with reasons, dropped edits with the blocking rule, warnings |
-| `GET /pathways`, `GET /pathways/{id}` | yes | saved pathways |
+| `POST /pathways` `{program_id, roadmap_id?, interest?, fresh?, avoid?}` | yes | [Flow B](#13-flow-b--pathway). No `interest` ⇒ baseline only. Returns the pathway ([§4.1](#41-data-shapes)): terms and slots, applied edits with reasons, dropped edits with the blocking rule, warnings, plus `id` and the raw `interest`. `fresh: true` skips the cache (the UI's Refresh); `avoid` (≤20 codes) tells the model which earlier picks to steer away from |
+| `POST /pathways/baseline` `{program_id, roadmap_id?}` | yes | the deterministic roadmap only: no Gemini, not saved or cached. The UI draws this while personalising runs |
+| `GET /pathways`, `GET /pathways/{id}` | yes | saved pathways; the list items carry `program_title`, `roadmap_name`, `interest`, `swaps`, `created_at` |
+| `GET /pathways/{id}/slots/{slot_id}/options?query=&limit=` | yes | other courses that could take one swappable slot (the same search the model uses, so they already respect the pool, level, units and prerequisites). A blank `query` falls back to the saved interest, then the slot title |
+| `POST /pathways/{id}/swap` `{slot_id, new_course_code}` | yes | the student's own pick for one slot, validated by the same rules as the model's edits; a slot swapped before can be swapped again. 422 `swap_rejected` with the reasons if refused; the saved pathway is updated in place |
+| `GET /courses?codes=A,B` | — | display details (description, prerequisites, attributes) for up to 60 course codes |
 | `GET /health` | — | liveness: Postgres, Redis |
 
 - `POST /pathways` is **synchronous** for the hackathon (a Gemini loop, a few seconds). If it proves slow, it becomes a job with polling later.
 - `POST /pathways` needs saved courses; with none, it still works and treats the student as having passed nothing.
-- **Rate limits** (Redis, [§6](#6-redis-caching)) on `/auth/login`, `/transcripts` and `/pathways`.
+- **Rate limits** (Redis, [§6](#6-redis-caching)) on `/transcripts` and `/pathways` (sign-in attempts are rate-limited by Firebase).
 
-Depends on: [§1.2](#12-flow-a--transcript-upload), [§1.3](#13-flow-b--pathway), [§4](#4-mcp-tools--pathway-engine). Used by: the future frontend.
+Depends on: [§1.2](#12-flow-a--transcript-upload), [§1.3](#13-flow-b--pathway), [§4](#4-mcp-tools--pathway-engine). Used by: the frontend ([§8](#8-frontend)).
 
 ## 6. Redis caching
 Status: **Proposed** (D8)
@@ -271,7 +273,7 @@ All keys are prefixed `gw:`. Values are JSON unless noted. Two version tokens go
 | `gw:rl:{endpoint}:{user_id or ip}:{window}` | counter (`INCR` + `EXPIRE`) | window length | rate limiting |
 
 - **Normalized interest** = lowercased, trimmed, whitespace collapsed.
-- **Rate limits** (per [§5](#5-api-surface)): `/auth/login` 10/min per IP; `/transcripts` 5/hour per user; `/pathways` 20/hour per user (each can cost Gemini calls).
+- **Rate limits** (per [§5](#5-api-surface)): `/transcripts` 5/hour per user; `/pathways` 20/hour per user (each can cost Gemini calls).
 - **Not cached:** course embeddings (stored once in pgvector, [§3](#3-ingestion-pipeline)) and anything holding user identity. Pathway cache keys hash only course content, so the cached value holds no personal data.
 - **If Redis is down:** caches are skipped and rate limiting fails open with a warning. Pathways with a specialization need sessions, so they return the baseline with a note; `/health` reports Redis ([§5](#5-api-surface)).
 
@@ -280,11 +282,24 @@ Used by: [Flow B](#13-flow-b--pathway), [§4.4](#44-orchestration-post-pathways-
 ## 7. Security & privacy
 Status: **Proposed** (hackathon level: demo transcripts only)
 
-- Passwords hashed with argon2; email domain check is a plain text match (D7). JWT secret and all keys come from `.env` (gitignored).
+- **Accounts are Firebase Authentication (D20).** Firebase stores the passwords and handles sign-up/sign-in; the API only verifies the Firebase ID token (signature against Google's public keys, project id from `FIREBASE_PROJECT_ID`; no secret) and keeps a local `users` row (uid + email) so courses and pathways have an owner. The SFSU email rule is a plain text match (D7), checked in the browser and again on every request. Optional `REQUIRE_EMAIL_VERIFIED`.
 - The PDF is never stored; only extracted course codes are ([Flow A](#12-flow-a--transcript-upload)). `DELETE /me/courses` removes them.
 - **`Redactor` port**: stub pass-through for now, real local code plugged in later. Redacted text is the only thing sent to Google.
 - **Stub warning:** with the stub, nothing is redacted. Fine for demo transcripts; a config flag (`REDACTION_ENABLED`) logs a loud startup warning when it's off, and real student transcripts should not be used until a real redactor is registered.
 - The Cloud Run extractor stores nothing and logs no transcript text ([§1.1](#11-what-runs)). The API calls it with a shared secret in an `X-Api-Key` header (hackathon-level auth; Cloud Run is deployed publicly reachable, the key keeps strangers out).
+
+## 8. Frontend
+Status: **Approved** (built)
+
+`frontend/` is a Next.js 16 (App Router) single page with Tailwind 4 and `motion` for animation, talking to the API with a bearer token kept in `localStorage`. Light theme, SF State purple and gold used as soft tints; serif display type; large radii; no hard blocks.
+
+**Flow:** sign in / create account → transcript → program (and roadmap variant) → interest (skippable) → roadmap. Past roadmaps open from a history sheet; clicking a course card opens a sheet with its description, prerequisites, why it was picked, and other options to swap in. "New interest" re-runs with new text; "Refresh picks" re-runs with `fresh` and `avoid`.
+
+**Streaming boxes** are a client-side staggered reveal, not server streaming: the page first calls `POST /pathways/baseline` and fills the term rows card by card, then saves the real result with `POST /pathways`; when it arrives the AI picks morph in one after another with a sparkle badge. Saved roadmaps skip the show. Long steps (reading the transcript, Gemini personalising) show only a series of rotating words that fit the moment — never a progress bar, and no privacy line.
+
+**Swaps** reuse the validator (`swap_slot`, `reopen_slot`): a student's pick is held to the same slot rule, pool, level, duplicate, unit and prerequisite checks as the model's.
+
+---
 
 ## Decision log
 
@@ -293,7 +308,7 @@ Status: **Proposed** (hackathon level: demo transcripts only)
 | D1 | FastAPI backend; FastMCP for tools | requested | [§1.1](#11-what-runs) |
 | D2 | **pgvector in Postgres**, not a separate vector DB | ~5k vectors; one query mixes similarity + relational filters; one fewer service | [§2](#2-data-model) |
 | D3 | Everything local; only Postgres + Redis in Docker; API and MCP run as plain processes | hackathon | [§1.1](#11-what-runs) |
-| D4 | Cloud Run extractor is the Google service (hackathon requirement) | requirement | [§1.1](#11-what-runs) |
+| D4 | ~~Cloud Run extractor is the Google service~~ **Superseded by D20**: the hackathon's Google-service requirement is met by Firebase Authentication; the extractor stays a separate stateless service (local by default; Cloud Run deployment optional) | requirement | [§1.1](#11-what-runs) |
 | D5 | Deterministic baseline → Gemini edits → deterministic validator; validator is authoritative | correctness of prerequisites/units can't depend on an LLM | [§1.3](#13-flow-b--pathway) |
 | D6 | Extractor takes **redacted text**, returns JSON; Gemini only, no Document AI. Scanned PDFs deferred | simplest for now | [§1.2](#12-flow-a--transcript-upload) |
 | D7 | Accounts: email + password, `sfsu.edu` (or subdomain, e.g. `mail.sfsu.edu`) text match, no verification; store passed courses + saved pathways, never the PDF | requested | [§2](#2-data-model), [§7](#7-security--privacy) |
@@ -305,6 +320,11 @@ Status: **Proposed** (hackathon level: demo transcripts only)
 | D13 | **SFSU transcripts only.** Gemini (the extractor) decides `is_sfsu_transcript`; `false` ⇒ stop. No extractable text (scanned) ⇒ rejected. No transfer-equivalency mapping, no OCR. Locally we only extract and redact | requested | [§1.2](#12-flow-a--transcript-upload) |
 | D14 | Gemini sees only a `session_id` (baseline + passed courses live in Redis); it proposes edits via tools, and the orchestrator re-validates with the engine regardless | keeps user data and rules out of the LLM; validator stays authoritative | [§4.2](#42-mcp-tools), [§4.4](#44-orchestration-post-pathways-flow-b) |
 | D15 | MCP tools are one-module-each and auto-registered; Gemini's callable tools are a config allowlist, so tools can be added freely | requested | [§4.6](#46-adding-tools-later-d15) |
+| D16 | Streaming boxes are a client-side staggered reveal over a baseline preview endpoint; long steps show only rotating words, never progress bars | the full answer arrives at once; requested look | [§8](#8-frontend) |
+| D17 | Student swaps use the same validator as the model, and an already-swapped slot can be swapped again (known limit: a replacement's units become the slot's minimum for later swaps) | one source of truth for the rules | [§5](#5-api-surface), [§8](#8-frontend) |
+| D18 | GE rows are swappable (slot kind `ge`): any course labelled for that GE area (current or older label; lower- vs upper-division by the row's `UD`) can fill one, validated like any swap. The slot keeps its original wording in `label` so it can be swapped again. **Gemini only edits `major_elective` and `free_elective` slots**; GE is the student's own choice | requested; keeps the model's work small and the student in control of GE | [§5](#5-api-surface), [§8](#8-frontend) |
+| D19 | **Real local redaction** before any transcript text reaches Gemini: GLiNER `nvidia/gliner-PII` (from Hugging Face) runs in the API process on the text pdfplumber extracted. Labels: person, student id, SSN, email, phone, address, date of birth. Names get a second pass at threshold 0.3 (other labels 0.5; lower flagged grades as IDs); spans are clipped to a line; course codes, grades, terms and the institution name are never redacted. **Fail closed**: if the model cannot load or run, the upload is refused (503 `redaction_unavailable`) and nothing is sent. `REDACTOR=stub` turns it off for tests and demos | requested; real student data must not reach an LLM unredacted | [§7](#7-security--privacy), [§1.2](#12-flow-a--transcript-upload) |
+| D20 | **Firebase Authentication** replaces our own passwords/JWTs (and is the hackathon's Google service instead of Cloud Run). Browser: Firebase web SDK; API: `GET /auth/me` plus Firebase ID-token verification on every route; `/auth/signup` and `/auth/login` removed. `users` gains `firebase_uid`, `password_hash` becomes optional (existing accounts link by email on first sign-in; a different Firebase account claiming an existing linked email gets a 409, never the old data) | requested: simpler, a Google service, and no password handling of our own | [§5](#5-api-surface), [§7](#7-security--privacy) |
 
 ## Open questions
 

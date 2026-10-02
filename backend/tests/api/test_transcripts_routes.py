@@ -9,6 +9,8 @@ from gatorway.ingest.loader import ingest_all
 from gatorway.transcripts.extraction import ExtractedCourse, ExtractedTranscript
 from gatorway.transcripts.extractor_client import ExtractorError
 
+from .conftest import bearer
+
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 TEXT = ["San Francisco State University", "Official Transcript", "CSC 101 Introduction to Computing A", "CSC 215 Intermediate Programming B"]
 
@@ -48,8 +50,7 @@ def upload(client, headers, pdf, name="t.pdf"):
 
 
 def auth(client, email="s@sfsu.edu"):
-    r = client.post("/auth/signup", json={"email": email, "password": "correct-horse-battery"})
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(email)
 
 
 def test_upload_saves_passed_courses_and_flags_unknown_codes(make_state, make_pdf, catalog):
@@ -127,3 +128,29 @@ def test_endpoints_require_a_login_and_uploads_are_rate_limited(make_state, make
     h = auth(client)
     codes = [upload(client, h, make_pdf(TEXT)).status_code for _ in range(6)]
     assert codes[:5] == [201] * 5 and codes[5] == 429
+
+
+def test_the_transcript_title_is_kept_so_odd_lines_can_be_recognised(make_state, make_pdf, catalog):
+    ex = FakeExtractor(ExtractedTranscript(is_sfsu_transcript=True, courses=[
+        ExtractedCourse(code="ENGL 1A", title="College Composition", grade="A", term="Fall 2022"),
+        ExtractedCourse(code="CSC 101", title="Introduction to Computing", grade="A", term="Fall 2023"),
+    ]))
+    client = make_client(make_state, ex)
+    h = auth(client)
+    body = upload(client, h, make_pdf(TEXT)).json()
+    assert [(c["code"], c["title"], c["flagged"]) for c in body["courses"]] == [("CSC 101", "Introduction to Computing", False), ("ENGL 1A", "College Composition", True)]
+    assert client.get("/me/courses", headers=h).json()["courses"][1]["title"] == "College Composition"
+
+
+def test_when_redaction_fails_nothing_is_sent_to_the_extractor(make_state, make_pdf, catalog):
+    from gatorway.transcripts.pii import RedactionError
+
+    class BrokenRedactor:
+        def redact(self, text):
+            raise RedactionError("model missing")
+
+    ex = FakeExtractor(transcript(("CSC 101", "A")))
+    client = make_client(make_state, ex, redactor=BrokenRedactor())
+    r = upload(client, auth(client), make_pdf(TEXT))
+    assert r.status_code == 503 and r.json()["error"]["code"] == "redaction_unavailable"
+    assert ex.received == []  # fail closed: unredacted text never leaves

@@ -41,7 +41,10 @@ def _task_prompt(session_id: str, intent: Intent, feedback: list[str] | None) ->
         "Start with get_baseline, then search_courses for each swappable slot you want to change."
     )
     if feedback:
-        text += "\nYour previous edits were rejected for these reasons; propose corrected edits only for those slots:\n- " + "\n- ".join(feedback)
+        text += (
+            "\nNotes for this attempt (fix any rejected edits for those slots only; avoid courses listed as earlier picks "
+            "when another good match exists):\n- " + "\n- ".join(feedback)
+        )
     return text
 
 

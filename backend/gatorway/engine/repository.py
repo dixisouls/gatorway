@@ -32,10 +32,10 @@ def get_catalog(db: Session) -> Catalog:
     if cached is not None:
         return cached
     courses = {}
-    cols = (Course.code, Course.title, Course.units_min, Course.units_max, Course.number_int, Course.prereq_groups, Course.concurrent_ok, Course.prereq_warnings)
-    for code, title, umin, umax, num, groups, conc, warns in db.execute(select(*cols)):
+    cols = (Course.code, Course.title, Course.units_min, Course.units_max, Course.number_int, Course.prereq_groups, Course.concurrent_ok, Course.prereq_warnings, Course.attributes)
+    for code, title, umin, umax, num, groups, conc, warns, attrs in db.execute(select(*cols)):
         courses[code] = CourseInfo(code=code, title=title, units_min=umin or 0, units_max=umax or 0, number_int=num,
-                                   prereq_groups=groups or [], concurrent_ok=set(conc or []), prereq_warnings=warns or [])
+                                   prereq_groups=groups or [], concurrent_ok=set(conc or []), prereq_warnings=warns or [], attributes=attrs or [])
     pools: dict[int, set[str]] = {}
     stmt = select(RequirementItem.section_id, RequirementItem.raw_code).join(RequirementSection).where(RequirementSection.kind == "elective")
     for section_id, code in db.execute(stmt):
@@ -65,7 +65,7 @@ def load_skeleton(program: Program, roadmap: Roadmap) -> Pathway:
     for t in roadmap.terms:
         slots: list[Slot] = []
         for s in t.slots:
-            base = Slot(slot_id=str(s.id), codes=list(s.codes or []), title=s.title, units=s.units or 0, slot_kind=s.slot_kind,
+            base = Slot(slot_id=str(s.id), label=s.title, codes=list(s.codes or []), title=s.title, units=s.units or 0, slot_kind=s.slot_kind,
                         swappable=s.swappable, pool_section_id=s.pool_section_id, counts_toward_major=s.counts_toward_major)
             slots.extend(split_seats(base, s.seats if s.swappable else 1))
         terms.append(Term(position=t.position, label=t.label, slots=slots))

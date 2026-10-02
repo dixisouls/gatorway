@@ -16,17 +16,18 @@ set -a; . ./.env; set +a
 mkdir -p logs
 PIDS=()
 
-# coloured log streaming: [DB] blue, [REDIS] red, [MCP] magenta, [EXTRACTOR] yellow, [API] green (plain tags if not a terminal)
-if [ -t 1 ]; then C_DB=$'\033[34m'; C_REDIS=$'\033[31m'; C_MCP=$'\033[35m'; C_EXT=$'\033[33m'; C_API=$'\033[32m'; C_OFF=$'\033[0m'
-else C_DB=; C_REDIS=; C_MCP=; C_EXT=; C_API=; C_OFF=; fi
+# coloured log streaming: [DB] blue, [REDIS] red, [MCP] magenta, [EXTRACTOR] yellow, [API] green, [WEB] cyan (plain tags if not a terminal)
+if [ -t 1 ]; then C_DB=$'\033[34m'; C_REDIS=$'\033[31m'; C_MCP=$'\033[35m'; C_EXT=$'\033[33m'; C_API=$'\033[32m'; C_WEB=$'\033[36m'; C_OFF=$'\033[0m'
+else C_DB=; C_REDIS=; C_MCP=; C_EXT=; C_API=; C_WEB=; C_OFF=; fi
 tag() {  # tag COLOR NAME : prefix every line read from stdin
   local color="$1" name="$2" line
   while IFS= read -r line; do printf '%s[%s]%s %s\n' "$color" "$name" "$C_OFF" "$line"; done
 }
-: > logs/mcp.log; : > logs/extractor.log; : > logs/api.log
+: > logs/mcp.log; : > logs/extractor.log; : > logs/api.log; : > logs/web.log
 tail -n 0 -F logs/mcp.log       > >(tag "$C_MCP" MCP) 2>&1 & PIDS+=($!)
 tail -n 0 -F logs/extractor.log > >(tag "$C_EXT" EXTRACTOR) 2>&1 & PIDS+=($!)
 tail -n 0 -F logs/api.log       > >(tag "$C_API" API) 2>&1 & PIDS+=($!)
+tail -n 0 -F logs/web.log       > >(tag "$C_WEB" WEB) 2>&1 & PIDS+=($!)
 cleanup() {
   echo; echo "Stopping servers..."
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null || true; done
@@ -69,8 +70,17 @@ echo "Starting API (:8000)..."
 PIDS+=($!)
 wait_http API http://127.0.0.1:8000/health 30
 
+if [ ! -d frontend/node_modules ]; then
+  echo "Installing frontend dependencies (first run)..."
+  (cd frontend && npm install --no-audit --no-fund) >logs/web-install.log 2>&1 || { echo "npm install failed, see logs/web-install.log"; exit 1; }
+fi
+echo "Starting frontend (:3000)..."
+(cd frontend && exec node_modules/.bin/next dev --port 3000) >logs/web.log 2>&1 &
+PIDS+=($!)
+wait_http frontend http://127.0.0.1:3000 90
+
 echo
-echo "All up:  API http://127.0.0.1:8000/docs   MCP :8001   extractor :8080"
+echo "All up:  open http://localhost:3000   (API http://127.0.0.1:8000/docs   MCP :8001   extractor :8080)"
 echo "Logs are streaming below (also saved in logs/)."
 echo "Ctrl-C to stop."
 wait

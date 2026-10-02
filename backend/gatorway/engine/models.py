@@ -10,10 +10,11 @@ class Slot(BaseModel):
     """One course-sized place in a roadmap term (a 'Take Three' row is split into three)."""
 
     slot_id: str
+    label: str = ""  # the roadmap's own wording for this requirement; kept when a course replaces it (a GE row needs its area to be swapped again)
     codes: list[str] = Field(default_factory=list)  # 1 course, or 2 for lecture+lab pairs; [] = open slot
     title: str
     units: float = 0
-    slot_kind: str = "fixed"  # fixed | major_elective | free_elective
+    slot_kind: str = "fixed"  # fixed | major_elective | free_elective | ge
     swappable: bool = False
     pool_section_id: int | None = None
     counts_toward_major: bool = False
@@ -85,6 +86,7 @@ class CourseInfo:
     prereq_groups: list[list[str]] = field(default_factory=list)  # AND of ORs
     concurrent_ok: set[str] = field(default_factory=set)
     prereq_warnings: list[str] = field(default_factory=list)
+    attributes: list[str] = field(default_factory=list)  # includes the GE area labels
 
 
 @dataclass

@@ -48,3 +48,30 @@ def test_a_course_can_be_saved_once_per_user(db):
     db.add(UserCourse(user_id=u.id, raw_code="CSC 101"))
     with pytest.raises(IntegrityError):
         db.commit()
+
+
+def test_init_db_adds_columns_that_were_added_after_a_table_already_existed(engine):
+    from sqlalchemy import text
+
+    from gatorway.db.session import init_db
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE user_courses DROP COLUMN IF EXISTS title"))
+    init_db(engine)
+    with engine.connect() as conn:
+        conn.execute(text("SELECT title FROM user_courses LIMIT 1"))  # raises if the column is missing
+
+
+def test_init_db_makes_users_ready_for_firebase_on_an_existing_database(engine):
+    from sqlalchemy import text
+
+    from gatorway.db.session import init_db
+
+    with engine.begin() as conn:  # the old shape: no firebase_uid, a required password hash
+        conn.execute(text("ALTER TABLE users DROP COLUMN IF EXISTS firebase_uid"))
+        conn.execute(text("ALTER TABLE users ALTER COLUMN password_hash SET NOT NULL"))
+    init_db(engine)
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO users (email, firebase_uid) VALUES ('fb@sfsu.edu', 'uid-1')"))  # no password, with a uid
+        assert conn.scalar(text("SELECT count(*) FROM users WHERE firebase_uid = 'uid-1'")) == 1
+        conn.execute(text("DELETE FROM users WHERE email = 'fb@sfsu.edu'"))

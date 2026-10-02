@@ -6,7 +6,9 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from gatorway.auth.security import decode_access_token
+from gatorway.auth.firebase import AuthUnavailable, InvalidToken
+from gatorway.auth.security import is_sfsu_email
+from gatorway.auth.users import AccountConflict, resolve_user
 from gatorway.db.models import User
 
 from .errors import ApiError
@@ -31,11 +33,20 @@ def current_user(
 ) -> User:
     if creds is None:
         raise ApiError(401, "not_authenticated", "Sign in first.", headers={"WWW-Authenticate": "Bearer"})
-    uid = decode_access_token(creds.credentials, state.settings.jwt_secret)
-    user = db.get(User, uid) if uid is not None else None
-    if user is None:
+    try:
+        identity = state.verifier.verify(creds.credentials)
+    except InvalidToken:
         raise ApiError(401, "invalid_token", "Your session has expired. Sign in again.", headers={"WWW-Authenticate": "Bearer"})
-    return user
+    except AuthUnavailable:
+        raise ApiError(503, "auth_unavailable", "Sign-in is temporarily unavailable. Please try again shortly.")
+    if not is_sfsu_email(identity.email):
+        raise ApiError(403, "invalid_email", "Use your SFSU email address (it must end in sfsu.edu).")
+    if state.settings.require_email_verified and not identity.email_verified:
+        raise ApiError(403, "email_not_verified", "Verify your email address first, then sign in again.")
+    try:
+        return resolve_user(db, identity)
+    except AccountConflict:
+        raise ApiError(409, "account_conflict", "This email is linked to a different sign-in. Please contact support.")
 
 
 def _enforce(state: AppState, endpoint: str, who: str, limit: int, window_s: int) -> None:

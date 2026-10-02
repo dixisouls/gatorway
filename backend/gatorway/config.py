@@ -24,12 +24,20 @@ class Settings(BaseSettings):
     local_embed_model: str = "BAAI/bge-base-en-v1.5"  # 768-dim sentence-transformers model
     embed_provider: str = "local"  # local | gemini | hashing (offline stand-in); must match how the stored course vectors were made
 
-    jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"
-    jwt_ttl_minutes: int = 1440
+    # Sign-in is Firebase Authentication. The backend only needs the project id to check ID tokens (no secret, no service account).
+    firebase_project_id: str = ""
+    require_email_verified: bool = False  # off: any @sfsu.edu-style address is let in, as before
+
+    # transcript redaction: "gliner" = local PII model (nvidia/gliner-PII), "stub" = no redaction (tests and demos only)
+    redactor: str = "gliner"
+    gliner_model: str = "nvidia/gliner-PII"
+    gliner_threshold: float = 0.5
+    gliner_person_threshold: float = 0.3
 
     extractor_url: str = "http://127.0.0.1:8080"
     extractor_api_key: str = ""
 
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"  # comma-separated browser origins allowed to call the API
     mcp_url: str = "http://127.0.0.1:8001/mcp"
     gemini_thinking_level: str = "off"  # off | LOW | MEDIUM | HIGH, or blank for the model default (gemini-3.8-flash rejects MINIMAL)
     edit_timeout_s: float = 120  # whole Gemini personalisation (several tool rounds, ~6 s each); then the baseline is shown

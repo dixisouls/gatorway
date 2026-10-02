@@ -1,7 +1,7 @@
 from gatorway.cache.store import CacheUnavailable
 from gatorway.engine import repository as repo
 from gatorway.engine.models import Edit, Pathway
-from gatorway.engine.validator import validate_edits as run_validation
+from gatorway.engine.validator import MODEL_KINDS, validate_edits as run_validation
 
 from ..deps import Deps
 
@@ -11,7 +11,7 @@ def _compact(pathway: Pathway) -> dict:
         "program": pathway.program_title, "level": pathway.program_level, "roadmap": pathway.roadmap_name,
         "terms": [{"label": t.label, "slots": [
             {"slot_id": s.slot_id, "codes": s.codes, "title": s.title, "units": s.units, "kind": s.slot_kind,
-             "swappable": s.swappable, "status": s.status} for s in t.slots]}
+             "swappable": s.swappable and s.slot_kind in MODEL_KINDS, "status": s.status} for s in t.slots]}
             for t in sorted(pathway.terms, key=lambda t: t.position)],
     }
 
@@ -64,7 +64,7 @@ def register(mcp, deps: Deps) -> None:
         pathway, passed = loaded
         parsed = [Edit(slot_id=str(e.get("slot_id", "")), new_course_code=str(e.get("new_course_code", "")), reason=str(e.get("reason", ""))) for e in edits]
         with deps.db() as db:
-            report = run_validation(pathway, parsed, passed, repo.get_catalog(db))
+            report = run_validation(pathway, parsed, passed, repo.get_catalog(db), allowed_kinds=MODEL_KINDS)
         return {
             "applied": [e.slot_id for e in report.applied],
             "dropped": [{"slot_id": d.edit.slot_id, "new_course_code": d.edit.new_course_code, "problems": [v.message for v in d.violations]} for d in report.dropped],

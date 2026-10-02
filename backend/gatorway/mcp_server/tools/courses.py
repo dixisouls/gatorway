@@ -3,6 +3,7 @@ from sqlalchemy import or_, select
 from gatorway.cache.store import CacheUnavailable
 from gatorway.db.models import Course
 from gatorway.engine import repository as repo
+from gatorway.engine.ge import counts_for_ge, ge_tokens
 from gatorway.engine.models import Edit
 from gatorway.engine.validator import validate_edits
 
@@ -54,6 +55,12 @@ def register(mcp, deps: Deps) -> None:
                 if not pool:
                     return {"candidates": []}
                 stmt = stmt.where(Course.code.in_(pool))
+            if slot.slot_kind == "ge":
+                areas = ge_tokens(slot.label or slot.title)
+                allowed = {c for c, info in catalog.courses.items() if counts_for_ge(info.attributes, info.number_int, areas)}
+                if not allowed:
+                    return {"candidates": []}
+                stmt = stmt.where(Course.code.in_(allowed))
             if pathway.program_level == "undergraduate":
                 stmt = stmt.where(or_(Course.number_int.is_(None), Course.number_int < 700))
             rows = db.execute(stmt.order_by("dist").limit(limit * OVERFETCH)).all()

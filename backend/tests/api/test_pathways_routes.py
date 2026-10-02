@@ -20,6 +20,8 @@ from gatorway.llm.ports import Intent
 from gatorway.mcp_server.deps import Deps
 from gatorway.mcp_server.server import create_server
 
+from .conftest import bearer
+
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 TOOLS = {"get_baseline", "get_requirements", "search_courses", "validate_edits"}
 
@@ -28,12 +30,13 @@ class ScriptedLlm:
     """Stands in for Gemini: reads the baseline through the real MCP tool, then picks the first free-elective slot."""
 
     def __init__(self, picks=("ART 101",)):
-        self.picks, self.edit_calls = list(picks), 0
+        self.picks, self.edit_calls, self.feedback = list(picks), 0, []
 
     async def parse_intent(self, interest):
         return Intent(specialization=True, topics=["drawing"], keywords=["art"], summary=interest)
 
     async def propose_edits(self, session_id, mcp, allowed, intent, feedback):
+        self.feedback.append(feedback)
         self.edit_calls += 1
         base = (await mcp.call_tool("get_baseline", {"session_id": session_id})).structured_content
         free = next(s for t in base["terms"] for s in t["slots"] if s["kind"] == "free_elective")
@@ -72,8 +75,8 @@ def world(engine, db, redis_client, make_state):
 
 
 def headers(client, email="s@sfsu.edu"):
-    r = client.post("/auth/signup", json={"email": email, "password": "correct-horse-battery"})
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}, r.json()["user"]["id"]
+    h = bearer(email)
+    return h, client.get("/auth/me", headers=h).json()["id"]
 
 
 def slots(result):
@@ -89,7 +92,7 @@ def test_no_interest_returns_the_baseline_without_calling_gemini(world):
     body = r.json()
     assert body["applied"] == [] and body["note"] is None and llm.edit_calls == 0
     assert [t["label"] for t in body["pathway"]["terms"]] == ["First Semester", "Second Semester", "Third Semester"]
-    assert body["pathway"]["roadmap_name"].endswith("QR Pathway 1/2") and sum(1 for s in slots(body) if s["swappable"]) == 3
+    assert body["pathway"]["roadmap_name"].endswith("QR Pathway 1/2") and sum(1 for s in slots(body) if s["swappable"]) == 4  # 2 major electives + a free elective + the GE row
 
 
 def test_interest_swaps_a_free_elective_and_the_result_is_saved_and_listed(world):
@@ -197,3 +200,238 @@ def test_a_down_tool_server_is_a_503_not_a_500(world, make_state, redis_client):
     h, _ = headers(client)
     r = client.post("/pathways", json={"program_id": pid}, headers=h)
     assert r.status_code == 503 and r.json()["error"]["code"] == "pathway_unavailable"
+
+
+def test_baseline_preview_is_not_saved_and_never_calls_gemini(world):
+    build, pid, _ = world
+    client, llm = build()
+    h, _ = headers(client)
+    r = client.post("/pathways/baseline", json={"program_id": pid}, headers=h)
+    assert r.status_code == 200 and set(r.json()) == {"pathway"}
+    assert [t["label"] for t in r.json()["pathway"]["terms"]] == ["First Semester", "Second Semester", "Third Semester"]
+    assert llm.edit_calls == 0
+    assert client.get("/pathways", headers=h).json()["pathways"] == []
+
+
+def test_baseline_preview_needs_login_and_a_real_program(world):
+    build, pid, minor = world
+    client, _ = build()
+    assert client.post("/pathways/baseline", json={"program_id": pid}).status_code == 401
+    h, _ = headers(client)
+    assert client.post("/pathways/baseline", json={"program_id": 99999}, headers=h).status_code == 404
+    assert client.post("/pathways/baseline", json={"program_id": minor}, headers=h).status_code == 404  # no roadmap
+
+
+def test_refresh_asks_gemini_again_instead_of_returning_the_cached_answer(world):
+    build, pid, _ = world
+    client, llm = build()
+    h, _ = headers(client)
+    body = {"program_id": pid, "interest": "I like drawing"}
+    client.post("/pathways", json=body, headers=h)
+    again = client.post("/pathways", json=body, headers=h).json()
+    assert again["cached"] is True and llm.edit_calls == 1
+    fresh = client.post("/pathways", json={**body, "fresh": True}, headers=h).json()
+    assert fresh["cached"] is False and llm.edit_calls == 2
+
+
+def test_refresh_tells_the_model_which_earlier_picks_to_avoid(world):
+    build, pid, _ = world
+    client, llm = build()
+    h, _ = headers(client)
+    client.post("/pathways", json={"program_id": pid, "interest": "drawing", "fresh": True, "avoid": ["ART 101", "CSC 601"]}, headers=h)
+    assert llm.feedback[-1] == ["Earlier picks to avoid if another good match exists: ART 101, CSC 601"]
+
+
+def test_avoid_list_is_bounded(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    r = client.post("/pathways", json={"program_id": pid, "interest": "x", "avoid": [f"C {i}" for i in range(21)]}, headers=h)
+    assert r.status_code == 422
+
+
+def _passed(db, uid, *codes):
+    for c in codes:
+        db.add(UserCourse(user_id=uid, raw_code=c))
+    db.commit()
+
+
+def test_slot_options_list_valid_alternatives_for_a_swappable_slot(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    r = client.get(f"/pathways/{saved['id']}/slots/{free['slot_id']}/options", params={"query": "relational databases"}, headers=h)
+    assert r.status_code == 200 and r.json()["slot_id"] == free["slot_id"] and r.json()["query"] == "relational databases"
+    codes = [c["code"] for c in r.json()["candidates"]]
+    assert "CSC 601" in codes and "CSC 101" not in codes and "CSC 850" not in codes  # planned / graduate courses are never offered
+    first = r.json()["candidates"][0]
+    assert {"code", "title", "units", "similarity", "summary", "warnings"} <= set(first)
+
+
+def test_slot_options_without_a_query_use_the_saved_interest(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    r = client.get(f"/pathways/{saved['id']}/slots/{free['slot_id']}/options", headers=h)
+    assert r.status_code == 200 and r.json()["query"] == "drawing art"  # the stub intent's topics + keywords
+
+
+def test_slot_options_refuse_fixed_slots_unknown_slots_and_other_users(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    fixed = next(s for s in slots(saved) if not s["swappable"])
+    base = f"/pathways/{saved['id']}/slots"
+    bad = client.get(f"{base}/{fixed['slot_id']}/options", headers=h)
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_slot"
+    assert client.get(f"{base}/nope/options", headers=h).status_code == 404
+    other, _ = headers(client, "other@sfsu.edu")
+    assert client.get(f"{base}/{fixed['slot_id']}/options", headers=other).status_code == 404
+    assert client.get("/pathways/99999/slots/x/options", headers=h).status_code == 404
+
+
+def _swap(client, h, saved, slot_id, code):
+    return client.post(f"/pathways/{saved['id']}/swap", json={"slot_id": slot_id, "new_course_code": code}, headers=h)
+
+
+def test_student_can_swap_a_slot_and_it_is_saved(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    r = _swap(client, h, saved, free["slot_id"], "ART 101")
+    assert r.status_code == 200
+    body = r.json()
+    swapped = next(s for s in slots(body) if s["slot_id"] == free["slot_id"])
+    assert swapped["codes"] == ["ART 101"] and swapped["status"] == "replaced"
+    assert [(a["slot_id"], a["new_course_code"], a["reason"]) for a in body["applied"]] == [(free["slot_id"], "ART 101", "Your choice")]
+    again = client.get(f"/pathways/{saved['id']}", headers=h).json()
+    assert next(s for s in slots(again) if s["slot_id"] == free["slot_id"])["codes"] == ["ART 101"]
+
+
+def test_a_slot_that_was_swapped_before_can_be_swapped_again(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    _passed(db, uid, "CSC 215", "CSC 220")
+    saved = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()  # the model picks ART 101
+    free = next(s for s in slots(saved) if s["status"] == "replaced")
+    assert free["codes"] == ["ART 101"]
+    r = _swap(client, h, saved, free["slot_id"], "CSC 600")
+    assert r.status_code == 200
+    body = r.json()
+    assert next(s for s in slots(body) if s["slot_id"] == free["slot_id"])["codes"] == ["CSC 600"]
+    assert [a["new_course_code"] for a in body["applied"]] == ["CSC 600"]  # one entry per slot, the latest
+
+
+def test_a_swap_the_validator_refuses_is_a_422_and_changes_nothing(world, db):
+    build, pid, _ = world
+    client, _ = build()
+    h, uid = headers(client)
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    fixed = next(s for s in slots(saved) if not s["swappable"])
+    for slot_id, code, fragment in [(free["slot_id"], "CSC 850", "graduate"), (free["slot_id"], "NOPE 1", "not in the catalog"),
+                                    (fixed["slot_id"], "ART 101", "not swappable"), (free["slot_id"], "CSC 600", "needs csc 220 before")]:
+        r = _swap(client, h, saved, slot_id, code)
+        assert r.status_code == 422 and r.json()["error"]["code"] == "swap_rejected", (code, r.text)
+        assert fragment in r.json()["error"]["message"].lower(), (code, r.text)
+        assert r.json()["error"]["details"]
+    untouched = client.get(f"/pathways/{saved['id']}", headers=h).json()
+    assert all(s["status"] != "replaced" for s in slots(untouched))
+
+
+def test_swaps_are_private_to_the_owner_and_need_login(world):
+    build, pid, _ = world
+    client, _ = build()
+    mine, _ = headers(client, "a@sfsu.edu")
+    theirs, _ = headers(client, "b@sfsu.edu")
+    saved = client.post("/pathways", json={"program_id": pid}, headers=mine).json()
+    free = next(s for s in slots(saved) if s["slot_kind"] == "free_elective")
+    assert _swap(client, theirs, saved, free["slot_id"], "ART 101").status_code == 404
+    assert client.post(f"/pathways/{saved['id']}/swap", json={"slot_id": "x", "new_course_code": "ART 101"}).status_code == 401
+
+
+def test_pathway_responses_carry_the_raw_interest(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    made = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()
+    assert made["interest"] == "I like drawing"
+    assert client.get(f"/pathways/{made['id']}", headers=h).json()["interest"] == "I like drawing"
+    assert client.post("/pathways", json={"program_id": pid}, headers=h).json()["interest"] is None
+
+
+def test_history_items_say_what_each_saved_roadmap_is(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    made = client.post("/pathways", json={"program_id": pid, "interest": "I like drawing"}, headers=h).json()
+    plain = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    items = {i["id"]: i for i in client.get("/pathways", headers=h).json()["pathways"]}
+    assert items[made["id"]]["program_title"] == made["pathway"]["program_title"] != ""
+    assert items[made["id"]]["roadmap_name"] == made["pathway"]["roadmap_name"]
+    assert items[made["id"]]["swaps"] == 1 and items[plain["id"]]["swaps"] == 0 and items[plain["id"]]["interest"] is None
+    assert list(items) == [plain["id"], made["id"]]  # newest first
+
+
+def _ge_slot(body):
+    return next(s for s in slots(body) if s["slot_kind"] == "ge")
+
+
+def test_ge_rows_offer_options_from_their_own_area_and_can_be_swapped_twice(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    ge = _ge_slot(saved)
+    assert ge["swappable"] is True and ge["label"].startswith("GE Area 4")
+    opts = client.get(f"/pathways/{saved['id']}/slots/{ge['slot_id']}/options", params={"query": "society"}, headers=h)
+    assert opts.status_code == 200
+    codes = [c["code"] for c in opts.json()["candidates"]]
+    assert set(codes) == {"SOC 100", "ANTH 110"}  # only courses labelled for Area 4 (current or older label); ART/CSC never appear
+    first = _swap(client, h, saved, ge["slot_id"], "SOC 100")
+    assert first.status_code == 200
+    swapped = _ge_slot(first.json())
+    assert swapped["codes"] == ["SOC 100"] and swapped["title"] == "Introduction to Sociology" and swapped["label"].startswith("GE Area 4")
+    again = _swap(client, h, saved, ge["slot_id"], "ANTH 110")
+    assert again.status_code == 200 and _ge_slot(again.json())["codes"] == ["ANTH 110"]
+    wrong = _swap(client, h, saved, ge["slot_id"], "ART 101")
+    assert wrong.status_code == 422 and "does not count for ge area 4" in wrong.json()["error"]["message"].lower()
+
+
+def test_gemini_never_edits_ge_rows_even_when_it_tries(world):
+    build, pid, _ = world
+
+    class GeGrabber(ScriptedLlm):
+        async def propose_edits(self, session_id, mcp, allowed, intent, feedback):
+            self.edit_calls += 1
+            base = (await mcp.call_tool("get_baseline", {"session_id": session_id})).structured_content
+            ge = next(s for t in base["terms"] for s in t["slots"] if s["kind"] == "ge")
+            assert ge["swappable"] is False  # the model is told these rows are not for it
+            return [Edit(slot_id=ge["slot_id"], new_course_code="SOC 100", reason="trying anyway")]
+
+    client, llm = build(llm=GeGrabber())
+    h, _ = headers(client)
+    body = client.post("/pathways", json={"program_id": pid, "interest": "society"}, headers=h).json()
+    assert body["applied"] == [] and body["dropped"] and body["dropped"][0]["violations"][0]["rule"] == "slot"
+    assert _ge_slot(body)["status"] == "planned"
+
+
+def test_a_roadmap_whose_only_swappable_rows_are_ge_skips_gemini_with_the_no_electives_note(world, db):
+    from gatorway.db.models import RoadmapSlot
+    build, pid, _ = world
+    db.execute(RoadmapSlot.__table__.update().where(RoadmapSlot.slot_kind != "ge").values(swappable=False)); db.commit()
+    client, llm = build()
+    h, _ = headers(client)
+    body = client.post("/pathways", json={"program_id": pid, "interest": "society"}, headers=h).json()
+    assert "no swappable" in body["note"] and llm.edit_calls == 0

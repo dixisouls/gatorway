@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import os
 import sys
 import time
 
@@ -28,6 +29,19 @@ def demo_pdf() -> bytes:
     return buf.getvalue()
 
 
+def firebase_sign_up(email: str, password: str) -> str:
+    """Create an account in Firebase (its REST API, like the web SDK does) and return the ID token the API expects."""
+    key = os.getenv("NEXT_PUBLIC_FIREBASE_API_KEY")
+    if not key:
+        sys.exit("Set NEXT_PUBLIC_FIREBASE_API_KEY (load .env first: set -a; . ./.env; set +a)")
+    host = os.getenv("NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST")
+    base = f"http://{host}/identitytoolkit.googleapis.com" if host else "https://identitytoolkit.googleapis.com"
+    r = httpx.post(f"{base}/v1/accounts:signUp", params={"key": key}, json={"email": email, "password": password, "returnSecureToken": True}, timeout=30)
+    if r.status_code != 200:
+        sys.exit(f"Firebase sign-up failed: {r.text}")
+    return r.json()["idToken"]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--api", default="http://127.0.0.1:8000")
@@ -37,8 +51,9 @@ def main() -> int:
     with httpx.Client(base_url=args.api, timeout=180) as c:
         print("health:", c.get("/health").json())
         email = f"smoke{int(time.time())}@sfsu.edu"
-        tok = c.post("/auth/signup", json={"email": email, "password": "smoke-test-password"}).json()["access_token"]
+        tok = firebase_sign_up(email, "smoke-test-password")
         h = {"Authorization": f"Bearer {tok}"}
+        print("signed in as:", c.get("/auth/me", headers=h).json())
         up = c.post("/transcripts", files={"file": ("demo.pdf", demo_pdf(), "application/pdf")}, headers=h)
         print("transcript:", up.status_code, up.json())
         programs = c.get("/programs", params={"query": args.program, "limit": 5}).json()["programs"]
