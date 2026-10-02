@@ -32,8 +32,8 @@ Status: **Approved** (hackathon-local runtime: D3, D4)
 
 | Piece | How | Port |
 |---|---|---|
-| Postgres + pgvector | `docker compose` | 5432 |
-| Redis | `docker compose` | 6379 |
+| Postgres 18 + pgvector 0.8.7 | `docker compose`; image `pgvector/pgvector:pg18` (already local; includes `psql`); named volume `gw_pgdata` mounted at `/var/lib/postgresql` (PG 18 layout, `PGDATA=/var/lib/postgresql/18/docker`) | 5432 |
+| Redis 8 | `docker compose`; `redis:8-alpine`, `--appendonly yes`, named volume `gw_redisdata` at `/data` | 6379 |
 | FastAPI app | `uvicorn` (plain process) | 8000 |
 | FastMCP server | `python -m` (plain process, streamable HTTP) | 8001 |
 | Transcript extractor | **Google Cloud Run** (stateless; Gemini via Vertex AI) — hackathon requirement | — |
@@ -113,6 +113,8 @@ Gemini may edit **two kinds of slot**; everything else is fixed.
 | `free_elective` | "University Elective", "SF State Studies or University Elective", "Complementary Studies or … Elective" | **any course** (D11: fully free, no SF State Studies check) | whole `courses` table |
 | not swappable | tagged `Major Core` / `Upper-Division Core` / `Concentration` / `Graduate Core` / `Credential`, "Select One (Major Core)", GE areas, US & California Government, etc. | — | — |
 
+**One slot = one course.** A roadmap row like "Major Elective (15 Units Total) - Take Three" (9 units) is stored once with `seats = 3`, and is **split into three single-course slots** (`id-1`, `id-2`, `id-3`, 3 units each) when the baseline is built. A slot holds one course, or two for a lecture+lab pair.
+
 Set at ingestion ([§3](#3-ingestion-pipeline)) by rule from slot text, tags and footnotes. Stored as `roadmap_slots.slot_kind`, `swappable` and `pool_section_id`.
 
 Data facts that shape this (scraped data, all programs):
@@ -134,6 +136,7 @@ The validator also guarantees the edited pathway still meets the **minimum units
 - Units from **passed courses** count toward totals; each passed course counts once.
 - Failures are **blocks** (fed back to Gemini). Missing data is a **warning** shown to the student.
 - A "74 units" heading is *major* units, not the degree total. Do not conflate them.
+- **Implementation (stronger than the table above):** an edit is rejected unless the replacement's `units_min` is **at least the slot's units**. Slot units never decrease, so the degree total, major units and every section total can never fall below the baseline. The validator then only *warns* when even the baseline is under a stated minimum.
 
 Depends on: [§3](#3-ingestion-pipeline). Used by: [§4](#4-mcp-tools--pathway-engine) (reads), [§1.3](#13-flow-b--pathway).
 
@@ -173,8 +176,8 @@ Two layers, so the rules live in plain testable code and not in the LLM:
 2. **MCP server** (FastMCP, :8001): thin tool wrappers over the engine and pgvector. This is what Gemini calls.
 
 ### 4.1 Data shapes
-- **Pathway** — terms → slots. Each slot: `slot_id`, `course_code` or none, `title`, `units`, `slot_kind` ([§2.2](#22-core-vs-swappable-slots-revised-d10)), `swappable`, `status` (`passed` / `planned` / `replaced`).
-- **Edit** — `{slot_id, new_course_code, reason}`. Gemini's only way to change a pathway.
+- **Pathway** — terms → slots. Each slot: `slot_id` (a string), `codes` (empty when open), `title`, `units`, `slot_kind` ([§2.2](#22-core-vs-swappable-slots-revised-d10)), `swappable`, `status` (`passed` / `planned` / `replaced`).
+- **Edit** — `{slot_id, new_course_code, reason}`: one course into one single-course slot. Gemini's only way to change a pathway. A "Take Three" row is three slots, so three edits.
 - **ValidationResult** — `violations` (blocks) and `warnings`, each tied to a `slot_id` and a rule.
 
 ### 4.2 MCP tools
@@ -189,7 +192,7 @@ Gemini never sees the user or the full pathway JSON. The orchestrator creates a 
 | `search_courses(session_id, slot_id, query, limit)` | pgvector similarity, **restricted to the slot's pool** ([§2.2](#22-core-vs-swappable-slots-revised-d10)) and excluding courses already passed or planned | Gemini |
 | `validate_edits(session_id, edits)` | run the validator on proposed edits; returns violations and warnings | Gemini |
 
-`build_baseline` is also exposed as a tool but is called by the orchestrator, not by Gemini.
+`build_baseline` and `open_session` (stores the baseline and passed courses, returns the `session_id`) are also tools, but they are called by the orchestrator, not by Gemini, and are not on the `GEMINI_TOOLS` allowlist.
 
 ### 4.3 Validator rules (authoritative, deterministic)
 Every edit, and then the whole edited pathway, must pass:
@@ -198,6 +201,10 @@ Every edit, and then the whole edited pathway, must pass:
 3. **Prerequisites** — for **every course in the pathway, including later ones**: each `prereq_groups` group is met by a passed course or one in an **earlier** term; same term only for a `concurrent_ok` code ([§2.1](#21-prerequisites-use-the-scraped-code-lists-add-light-logic-revised)). Checking the whole pathway catches a swap that removes a course a later one depended on.
 4. **Units** — degree total, major units, section units ([§2.3](#23-unit-rules-validator-d12)).
 5. **Warnings only** — non-course prerequisites, elective prose rules.
+- **Only newly introduced violations block an edit.** The university's own roadmap can already break a rule (e.g. a prerequisite scheduled late); that is not the edit's fault and must not block every swap.
+- **Search level filter:** for an `undergraduate` program `search_courses` excludes courses numbered 700 and above (graduate).
+- **Baseline passed-course placement:** a roadmap slot whose courses were all passed is marked `passed`; an open `major_elective` slot is filled from the elective pool with a passed course; free electives and GE slots are **never** auto-filled (a passed course there cannot be attributed safely). Passed courses placed nowhere are returned as `unplaced_passed`.
+- **"Passed" means credit earned:** A–D-, CR, P. F, W, NC, I, IP do not count.
 Out of scope: whether a course is actually offered in a given term (not in the data).
 
 ### 4.4 Orchestration (`POST /pathways`, [Flow B](#13-flow-b--pathway))
@@ -229,7 +236,7 @@ FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a bearer JWT. Errors share one s
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /auth/signup` `{email, password}` | — | creates the account; email must end `@sfsu.edu` (text match, D7), else 422 |
+| `POST /auth/signup` `{email, password}` | — | creates the account; email must be `@sfsu.edu` or a subdomain such as `@mail.sfsu.edu` (text match, case-insensitive; never `evilsfsu.edu` or `sfsu.edu.evil.com`, D7), else 422 |
 | `POST /auth/login` | — | returns an access token |
 | `GET /auth/me` | yes | current user |
 | `POST /transcripts` (multipart PDF) | yes | [Flow A](#12-flow-a--transcript-upload). 201 with passed courses (+ flagged codes); 422 if unreadable or not an SFSU transcript |
@@ -277,7 +284,7 @@ Status: **Proposed** (hackathon level: demo transcripts only)
 - The PDF is never stored; only extracted course codes are ([Flow A](#12-flow-a--transcript-upload)). `DELETE /me/courses` removes them.
 - **`Redactor` port**: stub pass-through for now, real local code plugged in later. Redacted text is the only thing sent to Google.
 - **Stub warning:** with the stub, nothing is redacted. Fine for demo transcripts; a config flag (`REDACTION_ENABLED`) logs a loud startup warning when it's off, and real student transcripts should not be used until a real redactor is registered.
-- The Cloud Run extractor stores nothing and logs no transcript text ([§1.1](#11-what-runs)).
+- The Cloud Run extractor stores nothing and logs no transcript text ([§1.1](#11-what-runs)). The API calls it with a shared secret in an `X-Api-Key` header (hackathon-level auth; Cloud Run is deployed publicly reachable, the key keeps strangers out).
 
 ## Decision log
 
@@ -289,7 +296,7 @@ Status: **Proposed** (hackathon level: demo transcripts only)
 | D4 | Cloud Run extractor is the Google service (hackathon requirement) | requirement | [§1.1](#11-what-runs) |
 | D5 | Deterministic baseline → Gemini edits → deterministic validator; validator is authoritative | correctness of prerequisites/units can't depend on an LLM | [§1.3](#13-flow-b--pathway) |
 | D6 | Extractor takes **redacted text**, returns JSON; Gemini only, no Document AI. Scanned PDFs deferred | simplest for now | [§1.2](#12-flow-a--transcript-upload) |
-| D7 | Accounts: email + password, `@sfsu.edu` text match, no verification; store passed courses + saved pathways, never the PDF | requested | [§2](#2-data-model), [§7](#7-security--privacy) |
+| D7 | Accounts: email + password, `sfsu.edu` (or subdomain, e.g. `mail.sfsu.edu`) text match, no verification; store passed courses + saved pathways, never the PDF | requested | [§2](#2-data-model), [§7](#7-security--privacy) |
 | D8 | Redis for sessions, intent parses, query embeddings, built pathways, locks, rate limits (keys and TTLs in §6) | avoid redundant Gemini/vector calls | [§6](#6-redis-caching) |
 | D9 | Prerequisites use the scraped `prerequisite_courses` lists plus a deterministic AND/OR grouping (strict AND when unsure) and `*` = concurrent OK; non-course conditions are warnings | lists are reliable; only AND/OR is missing; strict can over-reject but never under-check | [§2.1](#21-prerequisites-use-the-scraped-code-lists-add-light-logic-revised) |
 | D10 | Swappable slots: **major electives** (pool = the program's Electives list in Degree Requirements) and **free electives** (any course). Core, GE and everything else are fixed. Programs without a parseable elective list keep those slots fixed | requested; pool lists exist for 129/378 programs | [§2.2](#22-core-vs-swappable-slots-revised-d10) |
