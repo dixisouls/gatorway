@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from gatorway.engine.ge import ge_tokens, has_ge_courses
+
 _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
 _TAKE = re.compile(r"take\s+(one|two|three|four|five|six|\d+)\b", re.I)
 _DEFAULT_SKIP = re.compile(r"adt|scholar|5[\s-]*year|transfer|credential", re.I)
@@ -34,6 +36,8 @@ def classify_slot(codes: list[str], title: str, tags: list[str], has_elective_po
         return SlotClass("fixed", False, major)
     if t.lstrip().startswith("or "):  # an alternate to the row above ("or University Elective if ..."), not an extra course
         return SlotClass("fixed", False, major)
+    if re.match(r"\s*ge\s+areas?\b", t) and has_ge_courses(ge_tokens(title)):  # a GE requirement row: any course labelled for that area can fill it
+        return SlotClass("ge", True, False)
     if "university elective" in t:
         return SlotClass("free_elective", True, False)
     if has_elective_pool and re.search(r"\bmajor\b.*\belectives?\b|^\s*upper[- ]division electives?\b", t):  # "Major Electives", "Major Upper-Division Electives - Take Two", ...

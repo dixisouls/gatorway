@@ -1,6 +1,7 @@
 """Deterministic, authoritative rules. See ARCHITECTURE.md section 4.3."""
 from __future__ import annotations
 
+from .ge import counts_for_ge, ge_tokens
 from .models import Catalog, CourseInfo, DroppedEdit, Edit, EditsReport, Pathway, Violation
 
 
@@ -39,7 +40,11 @@ def prereq_violations(pathway: Pathway, passed: set[str], catalog: Catalog) -> l
     return out
 
 
-def edit_violations(pathway: Pathway, edit: Edit, passed: set[str], catalog: Catalog) -> list[Violation]:
+# The model proposes electives only; GE rows are the student's own to change.
+MODEL_KINDS = {"major_elective", "free_elective"}
+
+
+def edit_violations(pathway: Pathway, edit: Edit, passed: set[str], catalog: Catalog, allowed_kinds: set[str] | None = None) -> list[Violation]:
     found = pathway.find_slot(edit.slot_id)
     if found is None:
         return [Violation(rule="slot", slot_id=edit.slot_id, message=f"no slot {edit.slot_id}")]
@@ -49,6 +54,8 @@ def edit_violations(pathway: Pathway, edit: Edit, passed: set[str], catalog: Cat
         return [Violation(rule="slot", slot_id=slot.slot_id, message=f"slot '{slot.title}' is not swappable")]
     if slot.status != "planned":
         return [Violation(rule="slot", slot_id=slot.slot_id, message=f"slot already {slot.status}")]
+    if allowed_kinds is not None and slot.slot_kind not in allowed_kinds:
+        return [Violation(rule="slot", slot_id=slot.slot_id, message=f"slot '{slot.title}' is not for the model to change")]
     info = catalog.courses.get(code)
     if info is None:
         return [Violation(rule="unknown_course", slot_id=slot.slot_id, message=f"{code} is not in the catalog")]
@@ -57,6 +64,10 @@ def edit_violations(pathway: Pathway, edit: Edit, passed: set[str], catalog: Cat
         pool = catalog.pools.get(slot.pool_section_id or -1, set())
         if code not in pool:
             out.append(Violation(rule="pool", slot_id=slot.slot_id, message=f"{code} is not in this program's elective list"))
+    elif slot.slot_kind == "ge":
+        label = slot.label or slot.title
+        if not counts_for_ge(info.attributes, info.number_int, ge_tokens(label)):
+            out.append(Violation(rule="pool", slot_id=slot.slot_id, message=f"{code} does not count for {label.split(':')[0]}"))
     elif slot.slot_kind != "free_elective":
         out.append(Violation(rule="slot", slot_id=slot.slot_id, message=f"slot kind {slot.slot_kind} is not swappable"))
     if pathway.program_level == "undergraduate" and info.number_int is not None and info.number_int >= 700:
@@ -99,7 +110,7 @@ def unit_warnings(pathway: Pathway) -> list[str]:
     return out
 
 
-def validate_edits(baseline: Pathway, edits: list[Edit], passed: set[str], catalog: Catalog) -> EditsReport:
+def validate_edits(baseline: Pathway, edits: list[Edit], passed: set[str], catalog: Catalog, allowed_kinds: set[str] | None = None) -> EditsReport:
     """Apply edits one at a time; keep each valid one, drop each invalid one with the reasons.
     Only violations *introduced* by an edit block it: the university's own roadmap may already
     break a rule (e.g. a prerequisite scheduled late), and that is not the edit's fault."""
@@ -109,7 +120,7 @@ def validate_edits(baseline: Pathway, edits: list[Edit], passed: set[str], catal
     dropped: list[DroppedEdit] = []
     warnings: list[str] = []
     for edit in edits:
-        problems = edit_violations(current, edit, passed, catalog)
+        problems = edit_violations(current, edit, passed, catalog, allowed_kinds)
         trial = None
         if not problems:
             trial = apply_edit(current, edit, catalog.courses.get(edit.new_course_code))

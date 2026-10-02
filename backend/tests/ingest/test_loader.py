@@ -23,7 +23,7 @@ def run(db, data):
 
 def test_courses_are_loaded_with_prerequisite_logic(db, data):
     report = run(db, data)
-    assert report.courses == 8
+    assert report.courses == 10  # includes the two sociology/anthropology courses that carry GE Area 4 labels
     c220 = db.scalar(select(Course).where(Course.code == "CSC 220"))
     assert c220.prereq_groups == [["CSC 215", "CSC 210"]] and c220.prereq_warnings == ["permission of the instructor"]
     assert db.scalar(select(Course).where(Course.code == "CSC 600")).concurrent_ok == ["CSC 220"]
@@ -56,7 +56,8 @@ def test_roadmaps_default_and_slot_classification(db, data):
     assert (major.slot_kind, major.swappable, major.seats, major.units, major.pool_section_id) == ("major_elective", True, 2, 6, pool.id)
     free = by_title["SF State Studies or University Elective"]
     assert (free.slot_kind, free.swappable, free.pool_section_id) == ("free_elective", True, None)
-    assert by_title["GE Area 4: Social and Behavioral Sciences"].swappable is False
+    ge = by_title["GE Area 4: Social and Behavioral Sciences"]
+    assert ge.swappable is True and ge.slot_kind == "ge"  # any course labelled for that area can fill it
     core = by_title["Introduction to Computing"]
     assert (core.slot_kind, core.swappable, core.counts_toward_major) == ("fixed", False, True)
 
@@ -73,7 +74,7 @@ def test_ingest_is_idempotent_and_keeps_program_ids(db, data):
     v1 = db.get(Meta, "data_version").value
     report = run(db, data)
     counts = {m: db.scalar(select(func.count()).select_from(m)) for m in (Course, Program, RequirementSection, RequirementItem, Roadmap, RoadmapSlot)}
-    assert counts[Course] == 8 and counts[Program] == 2 and counts[Roadmap] == 2
+    assert counts[Course] == 10 and counts[Program] == 2 and counts[Roadmap] == 2
     assert db.scalar(select(Program.id).where(Program.slug == "bs-mini-computer-science")) == first_id
     assert db.get(Meta, "data_version").value != v1 and report.programs == 2
 

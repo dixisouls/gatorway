@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from gatorway.cache.store import Cache, CacheUnavailable
 from gatorway.engine.models import Catalog, DroppedEdit, Edit, Pathway
-from gatorway.engine.validator import reopen_slot, validate_edits
+from gatorway.engine.validator import MODEL_KINDS, reopen_slot, validate_edits
 
 from .ports import Intent, LlmPort
 
@@ -103,7 +103,7 @@ class PathwayService:
         baseline = await self._build_baseline(mcp, program_id, roadmap_id, passed)
         if not (interest or "").strip():
             return PathwayResult(pathway=baseline)
-        if not any(sl.swappable and sl.status == "planned" for sl in baseline.all_slots()):
+        if not any(sl.swappable and sl.slot_kind in MODEL_KINDS and sl.status == "planned" for sl in baseline.all_slots()):
             return PathwayResult(pathway=baseline, note="This roadmap has no swappable elective slots; showing the standard roadmap.")
 
         try:
@@ -178,7 +178,7 @@ class PathwayService:
                 log.warning("gemini edit loop failed: %s", e)
                 note = "Personalising failed part-way; showing what could be applied safely."
                 break
-            report = validate_edits(current, edits, passed_set, catalog)
+            report = validate_edits(current, edits, passed_set, catalog, allowed_kinds=MODEL_KINDS)
             applied += report.applied
             all_dropped += report.dropped
             warnings += report.warnings

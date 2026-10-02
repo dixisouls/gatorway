@@ -115,7 +115,7 @@ async def slot_options(
         text = result.intent.search_text()
     if not text:
         found = result.pathway.find_slot(slot_id)
-        text = found[1].title if found else slot_id
+        text = (found[1].label or found[1].title) if found else slot_id
     try:
         candidates = await state.pathway_service.options(
             pathway=result.pathway, passed=user_passed_codes(db, user.id), slot_id=slot_id, query=text, limit=limit

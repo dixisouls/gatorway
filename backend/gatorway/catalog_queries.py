@@ -4,6 +4,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from gatorway.engine.ge import counts_for_ge, ge_prefixes
 from gatorway.db.models import Course, Program, RequirementSection, Roadmap
 
 
@@ -58,38 +59,14 @@ def courses_by_codes(db: Session, codes: list[str]) -> dict[str, dict]:
     }
 
 
-# General education: courses carry their GE area in `attributes`, under the current label ("4: Social/Behavioral Sciences")
-# and the older letter scheme ("D1: Social Sciences"). Area 2 (math) has no labelled courses in the catalog.
-GE_ATTRIBUTES = {
-    "1A": ("1A:", "A2:"), "1B": ("1B:", "A3:"), "1C": ("1C:", "A1:"),
-    "3A": ("3A:", "C1:"), "3B": ("3B:", "C2:", "C3 or C2:"),
-    "4": ("4:", "D1:", "D2:", "D3:"),
-    "5A": ("5A:", "B1:"), "5B": ("5B:", "B2:"), "5C": ("5C:", "B3:"),
-    "6": ("6:", "GE-F:"),
-}
-GE_GROUPS = {"1": ("1A", "1B", "1C"), "3": ("3A", "3B"), "5": ("5A", "5B", "5C")}
-UPPER_DIVISION = 300
-
-
 def ge_courses(db: Session, areas: list[str], limit: int = 80) -> list[dict]:
-    """Courses that count for the given GE areas ("4", "5B", "3UD"...). A "UD" area lists upper-division courses, the others lower-division."""
-    prefixes: set[str] = set()
-    upper = False
-    for raw in areas:
-        token = raw.strip().upper()
-        if token.endswith("UD"):
-            upper, token = True, token[:-2]
-        for base in GE_GROUPS.get(token, (token,)):
-            prefixes.update(GE_ATTRIBUTES.get(base, ()))
-    if not prefixes:
+    """Courses that count for the given GE areas ("4", "5B", "3UD"...): see engine.ge for the rules."""
+    if not ge_prefixes(areas)[0]:
         return []
     rows = db.scalars(select(Course).where(func.jsonb_array_length(Course.attributes) > 0).order_by(Course.code))
     out = []
     for c in rows:
-        if not any(a.startswith(p) for a in c.attributes or [] for p in prefixes):
-            continue
-        n = c.number_int
-        if (n is not None and n >= UPPER_DIVISION) != upper:
+        if not counts_for_ge(c.attributes or [], c.number_int, areas):
             continue
         out.append({"code": c.code, "title": c.title, "units_min": c.units_min, "units_max": c.units_max,
                     "description": (c.description or "")[:240], "attributes": c.attributes or []})

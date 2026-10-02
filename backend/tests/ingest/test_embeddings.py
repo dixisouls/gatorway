@@ -29,8 +29,8 @@ def test_hashing_embedder_ranks_related_text_closer():
 
 def test_only_courses_with_a_description_are_embedded(loaded):
     n = embed_courses(loaded, HashingEmbedder())
-    assert n == 7  # CSC 999 has no description
-    assert loaded.scalar(select(func.count()).select_from(Course).where(Course.embedding.is_not(None))) == 7
+    assert n == 9  # CSC 999 has no description
+    assert loaded.scalar(select(func.count()).select_from(Course).where(Course.embedding.is_not(None))) == 9
     assert loaded.scalar(select(Course.embedding).where(Course.code == "CSC 999")) is None
 
 
@@ -60,7 +60,7 @@ class OtherEmbedder(HashingEmbedder):
 def test_switching_embedding_provider_re_embeds_everything_and_records_it(loaded):
     embed_courses(loaded, HashingEmbedder())
     assert loaded.get(Meta, "embedding_identity").value == "hashing:768"
-    assert embed_courses(loaded, OtherEmbedder()) == 7
+    assert embed_courses(loaded, OtherEmbedder()) == 9
     loaded.expire_all()
     assert loaded.get(Meta, "embedding_identity").value == "other:model:768"
 

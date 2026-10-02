@@ -38,7 +38,7 @@ def test_classify_slot():
     assert classify_slot([], "SF State Studies or University Elective", [], True).slot_kind == "free_elective"
     assert classify_slot([], "Major Elective (15 Units Total) - Take Two", [], True).slot_kind == "major_elective"
     assert classify_slot([], "Major Elective (15 Units Total)", [], False).swappable is False  # no pool -> fixed
-    assert classify_slot([], "GE Area 4: Social and Behavioral Sciences", [], True).swappable is False
+    assert classify_slot([], "GE Area 4: Social and Behavioral Sciences", [], True).slot_kind == "ge"  # swappable GE row
     assert classify_slot([], "Select One (Major Core):", [], True).swappable is False
 
 
@@ -93,5 +93,13 @@ def test_plural_and_qualified_major_elective_rows_are_swappable_too():
     for title in ("Major Electives", "Major Upper-Division Electives - Take Two", "Major Concentration Elective", "Major Approved Elective", "Upper-Division Electives"):
         assert classify_slot([], title, [], True).slot_kind == "major_elective", title
     assert classify_slot([], "Major Electives", [], False).swappable is False  # still needs a pool of allowed courses
-    for title in ("Select One (Major Core):", "Concentration Elective", "Graduate Elective", "GE Area 3: Arts and Humanities"):
+    for title in ("Select One (Major Core):", "Concentration Elective", "Graduate Elective", "GE Area UD"):
         assert classify_slot([], title, [], True).swappable is False, title
+
+
+def test_ge_rows_with_labelled_courses_are_swappable_ge_slots():
+    for title in ("GE Area 4: Social and Behavioral Sciences", "GE Areas 5A + 5C: Physical Science and Laboratory", "GE Area 5UD or 2UD: Upper-Division Science or Math", "GE Area 1: English Communication - Take Two"):
+        c = classify_slot([], title, [], False)
+        assert (c.slot_kind, c.swappable, c.counts_toward_major) == ("ge", True, False), title
+    for title in ("GE Area 2: Mathematical Concepts", "GE Area UD", "or GE Area 4 if met in transfer", "US and California Government"):
+        assert classify_slot([], title, [], False).swappable is False, title

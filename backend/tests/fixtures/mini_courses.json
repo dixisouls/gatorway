@@ -1,18 +1,135 @@
 [
-  {"course_code": "CSC 101", "subject": "CSC", "number": "101", "title": "Introduction to Computing", "units_min": 3, "units_max": 3,
-   "prerequisites": null, "prerequisite_courses": [], "description": "Programming basics in Python.", "course_attributes": []},
-  {"course_code": "CSC 215", "subject": "CSC", "number": "215", "title": "Intermediate Programming", "units_min": 4, "units_max": 4,
-   "prerequisites": "Prerequisite: CSC 101 with a grade of C or better.", "prerequisite_courses": ["CSC 101"], "description": "Object oriented programming.", "course_attributes": []},
-  {"course_code": "CSC 220", "subject": "CSC", "number": "220", "title": "Data Structures", "units_min": 3, "units_max": 3,
-   "prerequisites": "Prerequisites: CSC 215 or CSC 210; permission of the instructor.", "prerequisite_courses": ["CSC 215", "CSC 210"], "description": "Lists, trees and graphs.", "course_attributes": []},
-  {"course_code": "CSC 600", "subject": "CSC", "number": "600", "title": "Web Application Development", "units_min": 3, "units_max": 3,
-   "prerequisites": "Prerequisite: CSC 220*.", "prerequisite_courses": ["CSC 220"], "description": "Build web applications with JavaScript, React and Next.js frameworks.", "course_attributes": []},
-  {"course_code": "CSC 601", "subject": "CSC", "number": "601", "title": "Database Systems", "units_min": 3, "units_max": 3,
-   "prerequisites": "Prerequisite: CSC 215.", "prerequisite_courses": ["CSC 215"], "description": "Relational databases, SQL and query optimization.", "course_attributes": []},
-  {"course_code": "ART 101", "subject": "ART", "number": "101", "title": "Drawing", "units_min": 3, "units_max": 3,
-   "prerequisites": null, "prerequisite_courses": [], "description": "Drawing fundamentals and sketching.", "course_attributes": []},
-  {"course_code": "CSC 850", "subject": "CSC", "number": "850", "title": "Advanced Web Systems", "units_min": 3, "units_max": 3,
-   "prerequisites": "Prerequisite: Graduate standing.", "prerequisite_courses": [], "description": "Graduate seminar on scalable web application development.", "course_attributes": []},
-  {"course_code": "CSC 999", "subject": "CSC", "number": "999", "title": "No Description Course", "units_min": 1, "units_max": 1,
-   "prerequisites": null, "prerequisite_courses": [], "description": null, "course_attributes": []}
+ {
+  "course_code": "CSC 101",
+  "subject": "CSC",
+  "number": "101",
+  "title": "Introduction to Computing",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": null,
+  "prerequisite_courses": [],
+  "description": "Programming basics in Python.",
+  "course_attributes": []
+ },
+ {
+  "course_code": "CSC 215",
+  "subject": "CSC",
+  "number": "215",
+  "title": "Intermediate Programming",
+  "units_min": 4,
+  "units_max": 4,
+  "prerequisites": "Prerequisite: CSC 101 with a grade of C or better.",
+  "prerequisite_courses": [
+   "CSC 101"
+  ],
+  "description": "Object oriented programming.",
+  "course_attributes": []
+ },
+ {
+  "course_code": "CSC 220",
+  "subject": "CSC",
+  "number": "220",
+  "title": "Data Structures",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": "Prerequisites: CSC 215 or CSC 210; permission of the instructor.",
+  "prerequisite_courses": [
+   "CSC 215",
+   "CSC 210"
+  ],
+  "description": "Lists, trees and graphs.",
+  "course_attributes": []
+ },
+ {
+  "course_code": "CSC 600",
+  "subject": "CSC",
+  "number": "600",
+  "title": "Web Application Development",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": "Prerequisite: CSC 220*.",
+  "prerequisite_courses": [
+   "CSC 220"
+  ],
+  "description": "Build web applications with JavaScript, React and Next.js frameworks.",
+  "course_attributes": []
+ },
+ {
+  "course_code": "CSC 601",
+  "subject": "CSC",
+  "number": "601",
+  "title": "Database Systems",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": "Prerequisite: CSC 215.",
+  "prerequisite_courses": [
+   "CSC 215"
+  ],
+  "description": "Relational databases, SQL and query optimization.",
+  "course_attributes": []
+ },
+ {
+  "course_code": "ART 101",
+  "subject": "ART",
+  "number": "101",
+  "title": "Drawing",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": null,
+  "prerequisite_courses": [],
+  "description": "Drawing fundamentals and sketching.",
+  "course_attributes": []
+ },
+ {
+  "course_code": "CSC 850",
+  "subject": "CSC",
+  "number": "850",
+  "title": "Advanced Web Systems",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": "Prerequisite: Graduate standing.",
+  "prerequisite_courses": [],
+  "description": "Graduate seminar on scalable web application development.",
+  "course_attributes": []
+ },
+ {
+  "course_code": "CSC 999",
+  "subject": "CSC",
+  "number": "999",
+  "title": "No Description Course",
+  "units_min": 1,
+  "units_max": 1,
+  "prerequisites": null,
+  "prerequisite_courses": [],
+  "description": null,
+  "course_attributes": []
+ },
+ {
+  "course_code": "SOC 100",
+  "subject": "SOC",
+  "number": "100",
+  "title": "Introduction to Sociology",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": null,
+  "prerequisite_courses": [],
+  "description": "Society and social behavior.",
+  "course_attributes": [
+   "4: Social/Behavioral Sciences"
+  ]
+ },
+ {
+  "course_code": "ANTH 110",
+  "subject": "ANTH",
+  "number": "110",
+  "title": "Cultural Anthropology",
+  "units_min": 3,
+  "units_max": 3,
+  "prerequisites": null,
+  "prerequisite_courses": [],
+  "description": "Cultures and societies around the world.",
+  "course_attributes": [
+   "D1: Social Sciences"
+  ]
+ }
 ]

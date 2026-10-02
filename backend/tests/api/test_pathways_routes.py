@@ -90,7 +90,7 @@ def test_no_interest_returns_the_baseline_without_calling_gemini(world):
     body = r.json()
     assert body["applied"] == [] and body["note"] is None and llm.edit_calls == 0
     assert [t["label"] for t in body["pathway"]["terms"]] == ["First Semester", "Second Semester", "Third Semester"]
-    assert body["pathway"]["roadmap_name"].endswith("QR Pathway 1/2") and sum(1 for s in slots(body) if s["swappable"]) == 3
+    assert body["pathway"]["roadmap_name"].endswith("QR Pathway 1/2") and sum(1 for s in slots(body) if s["swappable"]) == 4  # 2 major electives + a free elective + the GE row
 
 
 def test_interest_swaps_a_free_elective_and_the_result_is_saved_and_listed(world):
@@ -380,3 +380,56 @@ def test_history_items_say_what_each_saved_roadmap_is(world):
     assert items[made["id"]]["roadmap_name"] == made["pathway"]["roadmap_name"]
     assert items[made["id"]]["swaps"] == 1 and items[plain["id"]]["swaps"] == 0 and items[plain["id"]]["interest"] is None
     assert list(items) == [plain["id"], made["id"]]  # newest first
+
+
+def _ge_slot(body):
+    return next(s for s in slots(body) if s["slot_kind"] == "ge")
+
+
+def test_ge_rows_offer_options_from_their_own_area_and_can_be_swapped_twice(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    saved = client.post("/pathways", json={"program_id": pid}, headers=h).json()
+    ge = _ge_slot(saved)
+    assert ge["swappable"] is True and ge["label"].startswith("GE Area 4")
+    opts = client.get(f"/pathways/{saved['id']}/slots/{ge['slot_id']}/options", params={"query": "society"}, headers=h)
+    assert opts.status_code == 200
+    codes = [c["code"] for c in opts.json()["candidates"]]
+    assert set(codes) == {"SOC 100", "ANTH 110"}  # only courses labelled for Area 4 (current or older label); ART/CSC never appear
+    first = _swap(client, h, saved, ge["slot_id"], "SOC 100")
+    assert first.status_code == 200
+    swapped = _ge_slot(first.json())
+    assert swapped["codes"] == ["SOC 100"] and swapped["title"] == "Introduction to Sociology" and swapped["label"].startswith("GE Area 4")
+    again = _swap(client, h, saved, ge["slot_id"], "ANTH 110")
+    assert again.status_code == 200 and _ge_slot(again.json())["codes"] == ["ANTH 110"]
+    wrong = _swap(client, h, saved, ge["slot_id"], "ART 101")
+    assert wrong.status_code == 422 and "does not count for ge area 4" in wrong.json()["error"]["message"].lower()
+
+
+def test_gemini_never_edits_ge_rows_even_when_it_tries(world):
+    build, pid, _ = world
+
+    class GeGrabber(ScriptedLlm):
+        async def propose_edits(self, session_id, mcp, allowed, intent, feedback):
+            self.edit_calls += 1
+            base = (await mcp.call_tool("get_baseline", {"session_id": session_id})).structured_content
+            ge = next(s for t in base["terms"] for s in t["slots"] if s["kind"] == "ge")
+            assert ge["swappable"] is False  # the model is told these rows are not for it
+            return [Edit(slot_id=ge["slot_id"], new_course_code="SOC 100", reason="trying anyway")]
+
+    client, llm = build(llm=GeGrabber())
+    h, _ = headers(client)
+    body = client.post("/pathways", json={"program_id": pid, "interest": "society"}, headers=h).json()
+    assert body["applied"] == [] and body["dropped"] and body["dropped"][0]["violations"][0]["rule"] == "slot"
+    assert _ge_slot(body)["status"] == "planned"
+
+
+def test_a_roadmap_whose_only_swappable_rows_are_ge_skips_gemini_with_the_no_electives_note(world, db):
+    from gatorway.db.models import RoadmapSlot
+    build, pid, _ = world
+    db.execute(RoadmapSlot.__table__.update().where(RoadmapSlot.slot_kind != "ge").values(swappable=False)); db.commit()
+    client, llm = build()
+    h, _ = headers(client)
+    body = client.post("/pathways", json={"program_id": pid, "interest": "society"}, headers=h).json()
+    assert "no swappable" in body["note"] and llm.edit_calls == 0
