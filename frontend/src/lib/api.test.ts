@@ -1,18 +1,18 @@
-import { api, ApiError, setToken, setUnauthorizedHandler } from "@/lib/api";
+import { api, ApiError, setTokenProvider, setUnauthorizedHandler } from "@/lib/api";
 
 const reply = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  setToken(null);
+  setTokenProvider(null);
   setUnauthorizedHandler(null);
 });
 
 test("sends the bearer token and a JSON body", async () => {
   const fetchMock = vi.fn().mockResolvedValue(reply({ pathway: {} }));
   vi.stubGlobal("fetch", fetchMock);
-  setToken("tok");
+  setTokenProvider(async () => "tok");
   await api.baseline(5, null);
   const [url, init] = fetchMock.mock.calls[0];
   expect(url).toMatch(/\/pathways\/baseline$/);
@@ -39,18 +39,28 @@ test("a 401 while signed in calls the unauthorized handler", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({ error: { code: "unauthorized", message: "Sign in again." } }, 401)));
   const handler = vi.fn();
   setUnauthorizedHandler(handler);
-  setToken("tok");
+  setTokenProvider(async () => "tok");
   await api.myCourses().catch(() => {});
   expect(handler).toHaveBeenCalledTimes(1);
 });
 
-test("a wrong password at sign-in does not look like an expired session", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({ error: { code: "invalid_credentials", message: "Invalid email or password." } }, 401)));
+test("a 401 with no one signed in does not trigger the unauthorized handler", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({ error: { code: "not_authenticated", message: "Sign in first." } }, 401)));
   const handler = vi.fn();
   setUnauthorizedHandler(handler);
-  setToken("old");
-  await api.login("a@sfsu.edu", "wrong-password").catch(() => {});
+  setTokenProvider(async () => null);
+  await api.myCourses().catch(() => {});
   expect(handler).not.toHaveBeenCalled();
+});
+
+test("every request asks the provider for a fresh token, since Firebase ID tokens expire hourly", async () => {
+  const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(reply({ count: 0, courses: [], flagged: [] })));
+  vi.stubGlobal("fetch", fetchMock);
+  let n = 0;
+  setTokenProvider(async () => `tok-${++n}`);
+  await api.myCourses();
+  await api.myCourses();
+  expect(fetchMock.mock.calls.map((c) => c[1].headers.Authorization)).toEqual(["Bearer tok-1", "Bearer tok-2"]);
 });
 
 test("uploads the transcript as multipart without forcing a JSON content type", async () => {

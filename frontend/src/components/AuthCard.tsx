@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "./ui/Button";
 
@@ -22,7 +21,7 @@ export function AuthCard() {
     try {
       await (mode === "login" ? login : signup)(email.trim(), password);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setPending(false);
     }
   }

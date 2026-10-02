@@ -146,12 +146,6 @@ export interface User {
   email: string;
 }
 
-export interface AuthResponse {
-  user: User;
-  access_token: string;
-  token_type: string;
-}
-
 export interface GeCourse {
   code: string;
   title: string;

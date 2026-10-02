@@ -1,5 +1,5 @@
 import type {
-  AuthResponse, CourseDetail, OptionsResponse, Pathway, PathwayListItem, ProgramBrief, RoadmapBrief, SavedPathway,
+  CourseDetail, OptionsResponse, Pathway, PathwayListItem, ProgramBrief, RoadmapBrief, SavedPathway,
   TranscriptSummary, User, GeCourse,
 } from "./types";
 
@@ -17,10 +17,11 @@ export class ApiError extends Error {
   }
 }
 
-let token: string | null = null;
+let tokenProvider: (() => Promise<string | null>) | null = null;
 let onUnauthorized: (() => void) | null = null;
-export const setToken = (t: string | null) => {
-  token = t;
+/** Firebase ID tokens expire hourly, so every request asks for the current one instead of holding a string. */
+export const setTokenProvider = (fn: (() => Promise<string | null>) | null) => {
+  tokenProvider = fn;
 };
 export const setUnauthorizedHandler = (fn: (() => void) | null) => {
   onUnauthorized = fn;
@@ -34,6 +35,7 @@ interface Init {
 
 async function request<T>(path: string, init: Init = {}): Promise<T> {
   const headers: Record<string, string> = {};
+  const token = (await tokenProvider?.().catch(() => null)) ?? null;
   if (token) headers.Authorization = `Bearer ${token}`;
   let body: BodyInit | undefined;
   if (init.json !== undefined) {
@@ -52,7 +54,7 @@ async function request<T>(path: string, init: Init = {}): Promise<T> {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const err = data?.error ?? {};
-    if (res.status === 401 && token && !path.startsWith("/auth/login")) onUnauthorized?.();
+    if (res.status === 401 && token) onUnauthorized?.();
     throw new ApiError(res.status, err.code ?? "error", err.message ?? "Something went wrong. Please try again.", err.details);
   }
   return data as T;
@@ -66,8 +68,6 @@ const query = (params: Record<string, string | number | undefined>) => {
 };
 
 export const api = {
-  signup: (email: string, password: string) => request<AuthResponse>("/auth/signup", { method: "POST", json: { email, password } }),
-  login: (email: string, password: string) => request<AuthResponse>("/auth/login", { method: "POST", json: { email, password } }),
   me: () => request<User>("/auth/me"),
   uploadTranscript: (file: File) => {
     const form = new FormData();
