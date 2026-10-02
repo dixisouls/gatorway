@@ -66,15 +66,20 @@ def parse_edits(text: str | None) -> list[Edit]:
 
 
 class GeminiLlm:
-    def __init__(self, client: Any, model: str):
+    def __init__(self, client: Any, model: str, thinking_level: str = ""):
         self._client = client  # google.genai.Client (or a test double with the same .aio.models surface)
         self._model = model
+        # "off" = no thinking tokens (fastest); LOW/MEDIUM/HIGH = a reasoning level; blank = the model's own default
+        if thinking_level.lower() == "off":
+            self._thinking = types.ThinkingConfig(thinking_budget=0)
+        else:
+            self._thinking = types.ThinkingConfig(thinking_level=thinking_level.upper()) if thinking_level else None
 
     async def parse_intent(self, interest: str) -> Intent:
         resp = await self._client.aio.models.generate_content(
             model=self._model,
             contents=INTENT_PROMPT.format(interest=interest.strip()[:2000]),
-            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=Intent, temperature=0.0),
+            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=Intent, temperature=0.0, thinking_config=self._thinking),
         )
         parsed = getattr(resp, "parsed", None)
         if isinstance(parsed, Intent):
@@ -84,7 +89,7 @@ class GeminiLlm:
     async def propose_edits(self, session_id: str, mcp: Any, allowed_tools: set[str], intent: Intent, feedback: list[str] | None) -> list[Edit]:
         tools = [t for t in await mcp.list_tools() if t.name in allowed_tools]
         decls = [types.FunctionDeclaration(name=t.name, description=t.description or "", parameters_json_schema=t.input_schema) for t in tools]
-        config = types.GenerateContentConfig(system_instruction=SYSTEM, tools=[types.Tool(function_declarations=decls)], temperature=0.0)
+        config = types.GenerateContentConfig(system_instruction=SYSTEM, tools=[types.Tool(function_declarations=decls)], temperature=0.0, thinking_config=self._thinking)
         contents: list[types.Content] = [types.Content(role="user", parts=[types.Part(text=_task_prompt(session_id, intent, feedback))])]
         for _ in range(MAX_TURNS):
             resp = await self._client.aio.models.generate_content(model=self._model, contents=contents, config=config)

@@ -96,3 +96,25 @@ async def test_parse_intent_uses_structured_output():
 def test_parse_edits_tolerates_garbage():
     assert parse_edits(None) == [] and parse_edits("no json here") == [] and parse_edits("{bad json}") == []
     assert parse_edits('{"edits":[{"slot_id":"a"},{"slot_id":"b","new_course_code":"X 1"}]}')[0].slot_id == "b"
+
+
+async def test_thinking_off_is_applied_to_intent_and_edit_calls():
+    client = FakeClient([text_resp('{"specialization": false, "topics": [], "keywords": [], "summary": ""}'), text_resp('{"edits": []}')])
+    llm = GeminiLlm(client, "m", thinking_level="off")
+    await llm.parse_intent("anything")
+    async with Client(make_mcp()) as mcp:
+        await llm.propose_edits("S1", mcp, {"get_baseline"}, INTENT, None)
+    for call in client.calls:
+        assert call["config"].thinking_config.thinking_budget == 0
+
+
+async def test_no_thinking_config_when_level_is_blank():
+    client = FakeClient([text_resp('{"specialization": false, "topics": [], "keywords": [], "summary": ""}')])
+    await GeminiLlm(client, "m", thinking_level="").parse_intent("x")
+    assert client.calls[0]["config"].thinking_config is None
+
+
+async def test_named_thinking_level_is_passed_through():
+    client = FakeClient([text_resp('{"specialization": false, "topics": [], "keywords": [], "summary": ""}')])
+    await GeminiLlm(client, "m", thinking_level="low").parse_intent("x")
+    assert client.calls[0]["config"].thinking_config.thinking_level == types.ThinkingLevel.LOW

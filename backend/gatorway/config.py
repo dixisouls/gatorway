@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     extractor_api_key: str = ""
 
     mcp_url: str = "http://127.0.0.1:8001/mcp"
+    gemini_thinking_level: str = "off"  # off | LOW | MEDIUM | HIGH, or blank for the model default (gemini-3.8-flash rejects MINIMAL)
     edit_timeout_s: float = 120  # whole Gemini personalisation (several tool rounds, ~6 s each); then the baseline is shown
     gemini_tools: str = "get_baseline,get_requirements,search_courses,validate_edits"
 

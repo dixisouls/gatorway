@@ -28,3 +28,7 @@ def test_edit_timeout_defaults_to_two_minutes_and_is_configurable(monkeypatch):
     assert Settings(_env_file=None).edit_timeout_s == 120
     monkeypatch.setenv("EDIT_TIMEOUT_S", "200")
     assert Settings(_env_file=None).edit_timeout_s == 200
+
+
+def test_gemini_thinking_defaults_to_off(monkeypatch):
+    assert Settings(_env_file=None).gemini_thinking_level == "off"

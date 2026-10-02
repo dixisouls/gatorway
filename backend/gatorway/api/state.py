@@ -61,7 +61,7 @@ def build_state(settings: Settings | None = None) -> AppState:
     r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
     cache = Cache(r)
     if gemini_configured(settings):
-        llm = GeminiLlm(make_genai_client(settings), settings.gemini_model)
+        llm = GeminiLlm(make_genai_client(settings), settings.gemini_model, settings.gemini_thinking_level)
     else:
         llm = UnavailableLlm()
 
