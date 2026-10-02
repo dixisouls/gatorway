@@ -1,0 +1,44 @@
+# ---- Python ----
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---- Next.js / Node ----
+node_modules/
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.vercel/
+.turbo/
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Scraping: commit code only ----
+# Ignore everything in scraping/ except the Python scripts
+scraping/*
+!scraping/*.py
+
+# ---- Tooling / editor / OS ----
+.claude/
+.code-review-graph/
+.idea/
+.vscode/
+.DS_Store
+*.log
