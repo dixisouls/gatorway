@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from gatorway.db.models import Program, RequirementSection, Roadmap
+from gatorway.db.models import Course, Program, RequirementSection, Roadmap
 
 
 def _brief(p: Program) -> dict:
@@ -38,3 +38,21 @@ def requirements_of(db: Session, program_id: int) -> list[dict]:
     rows = db.scalars(select(RequirementSection).where(RequirementSection.program_id == program_id).order_by(RequirementSection.position))
     return [{"id": s.id, "heading": s.heading, "kind": s.kind, "units": s.units_raw, "notes": s.notes or [],
              "courses": [i.raw_code for i in s.items]} for s in rows]
+
+
+MAX_COURSE_CODES = 60
+
+
+def courses_by_codes(db: Session, codes: list[str]) -> dict[str, dict]:
+    """Display details for the given course codes. Unknown codes are left out."""
+    wanted = list(dict.fromkeys(c.strip() for c in codes if c.strip()))[:MAX_COURSE_CODES]
+    if not wanted:
+        return {}
+    rows = db.scalars(select(Course).where(Course.code.in_(wanted)))
+    return {
+        c.code: {
+            "code": c.code, "title": c.title, "units_min": c.units_min, "units_max": c.units_max, "description": c.description,
+            "prereq_text": c.prereq_text, "prereq_groups": c.prereq_groups or [], "attributes": c.attributes or [],
+        }
+        for c in rows
+    }
