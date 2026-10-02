@@ -36,7 +36,7 @@ Status: **Approved** (hackathon-local runtime: D3, D4)
 | Redis 8 | `docker compose`; `redis:8-alpine`, `--appendonly yes`, named volume `gw_redisdata` at `/data` | 6379 |
 | FastAPI app | `uvicorn` (plain process) | 8000 |
 | FastMCP server | `python -m` (plain process, streamable HTTP) | 8001 |
-| Transcript extractor | **Google Cloud Run** (stateless; Gemini via Vertex AI) — hackathon requirement | — |
+| Transcript extractor | Stateless service (Gemini via Vertex AI); runs locally, deployable to Cloud Run | — |
 
 API and MCP share one Python package (DB + domain logic) — no duplicated code. The extractor is a separate small deploy folder.
 `frontend/` holds the Next.js web app ([§8](#8-frontend)).
@@ -232,13 +232,11 @@ Depends on: [§2](#2-data-model), [§3](#3-ingestion-pipeline). Used by: [§5](#
 ## 5. API surface
 Status: **Proposed**
 
-FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a bearer JWT. Errors share one shape: `{"error": {"code", "message", "details"}}`.
+FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a Firebase ID token sent as a bearer token ([§7](#7-security--privacy)). Errors share one shape: `{"error": {"code", "message", "details"}}`.
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /auth/signup` `{email, password}` | — | creates the account; email must be `@sfsu.edu` or a subdomain such as `@mail.sfsu.edu` (text match, case-insensitive; never `evilsfsu.edu` or `sfsu.edu.evil.com`, D7), else 422 |
-| `POST /auth/login` | — | returns an access token |
-| `GET /auth/me` | yes | current user |
+| `GET /auth/me` | Firebase ID token | the signed-in student; the first call creates their local record. Sign-up and sign-in happen in Firebase, not here. Non-SFSU email → 403 `invalid_email`; with `REQUIRE_EMAIL_VERIFIED`, unverified → 403 `email_not_verified`; an email linked to a different Firebase account → 409 `account_conflict`; bad/expired token → 401 `invalid_token` (D7, D20) |
 | `POST /transcripts` (multipart PDF) | yes | [Flow A](#12-flow-a--transcript-upload). 201 with passed courses (+ flagged codes); 422 if unreadable or not an SFSU transcript |
 | `GET /me/courses` | yes | the saved passed-course list |
 | `DELETE /me/courses` | yes | delete the saved course list (privacy) |
@@ -256,7 +254,7 @@ FastAPI, JSON, OpenAPI docs at `/docs`. Auth is a bearer JWT. Errors share one s
 
 - `POST /pathways` is **synchronous** for the hackathon (a Gemini loop, a few seconds). If it proves slow, it becomes a job with polling later.
 - `POST /pathways` needs saved courses; with none, it still works and treats the student as having passed nothing.
-- **Rate limits** (Redis, [§6](#6-redis-caching)) on `/auth/login`, `/transcripts` and `/pathways`.
+- **Rate limits** (Redis, [§6](#6-redis-caching)) on `/transcripts` and `/pathways` (sign-in attempts are rate-limited by Firebase).
 
 Depends on: [§1.2](#12-flow-a--transcript-upload), [§1.3](#13-flow-b--pathway), [§4](#4-mcp-tools--pathway-engine). Used by: the frontend ([§8](#8-frontend)).
 
@@ -275,7 +273,7 @@ All keys are prefixed `gw:`. Values are JSON unless noted. Two version tokens go
 | `gw:rl:{endpoint}:{user_id or ip}:{window}` | counter (`INCR` + `EXPIRE`) | window length | rate limiting |
 
 - **Normalized interest** = lowercased, trimmed, whitespace collapsed.
-- **Rate limits** (per [§5](#5-api-surface)): `/auth/login` 10/min per IP; `/transcripts` 5/hour per user; `/pathways` 20/hour per user (each can cost Gemini calls).
+- **Rate limits** (per [§5](#5-api-surface)): `/transcripts` 5/hour per user; `/pathways` 20/hour per user (each can cost Gemini calls).
 - **Not cached:** course embeddings (stored once in pgvector, [§3](#3-ingestion-pipeline)) and anything holding user identity. Pathway cache keys hash only course content, so the cached value holds no personal data.
 - **If Redis is down:** caches are skipped and rate limiting fails open with a warning. Pathways with a specialization need sessions, so they return the baseline with a note; `/health` reports Redis ([§5](#5-api-surface)).
 
@@ -284,7 +282,7 @@ Used by: [Flow B](#13-flow-b--pathway), [§4.4](#44-orchestration-post-pathways-
 ## 7. Security & privacy
 Status: **Proposed** (hackathon level: demo transcripts only)
 
-- Passwords hashed with argon2; email domain check is a plain text match (D7). JWT secret and all keys come from `.env` (gitignored).
+- **Accounts are Firebase Authentication (D20).** Firebase stores the passwords and handles sign-up/sign-in; the API only verifies the Firebase ID token (signature against Google's public keys, project id from `FIREBASE_PROJECT_ID`; no secret) and keeps a local `users` row (uid + email) so courses and pathways have an owner. The SFSU email rule is a plain text match (D7), checked in the browser and again on every request. Optional `REQUIRE_EMAIL_VERIFIED`.
 - The PDF is never stored; only extracted course codes are ([Flow A](#12-flow-a--transcript-upload)). `DELETE /me/courses` removes them.
 - **`Redactor` port**: stub pass-through for now, real local code plugged in later. Redacted text is the only thing sent to Google.
 - **Stub warning:** with the stub, nothing is redacted. Fine for demo transcripts; a config flag (`REDACTION_ENABLED`) logs a loud startup warning when it's off, and real student transcripts should not be used until a real redactor is registered.
@@ -310,7 +308,7 @@ Status: **Approved** (built)
 | D1 | FastAPI backend; FastMCP for tools | requested | [§1.1](#11-what-runs) |
 | D2 | **pgvector in Postgres**, not a separate vector DB | ~5k vectors; one query mixes similarity + relational filters; one fewer service | [§2](#2-data-model) |
 | D3 | Everything local; only Postgres + Redis in Docker; API and MCP run as plain processes | hackathon | [§1.1](#11-what-runs) |
-| D4 | Cloud Run extractor is the Google service (hackathon requirement) | requirement | [§1.1](#11-what-runs) |
+| D4 | ~~Cloud Run extractor is the Google service~~ **Superseded by D20**: the hackathon's Google-service requirement is met by Firebase Authentication; the extractor stays a separate stateless service (local by default; Cloud Run deployment optional) | requirement | [§1.1](#11-what-runs) |
 | D5 | Deterministic baseline → Gemini edits → deterministic validator; validator is authoritative | correctness of prerequisites/units can't depend on an LLM | [§1.3](#13-flow-b--pathway) |
 | D6 | Extractor takes **redacted text**, returns JSON; Gemini only, no Document AI. Scanned PDFs deferred | simplest for now | [§1.2](#12-flow-a--transcript-upload) |
 | D7 | Accounts: email + password, `sfsu.edu` (or subdomain, e.g. `mail.sfsu.edu`) text match, no verification; store passed courses + saved pathways, never the PDF | requested | [§2](#2-data-model), [§7](#7-security--privacy) |
@@ -326,6 +324,7 @@ Status: **Approved** (built)
 | D17 | Student swaps use the same validator as the model, and an already-swapped slot can be swapped again (known limit: a replacement's units become the slot's minimum for later swaps) | one source of truth for the rules | [§5](#5-api-surface), [§8](#8-frontend) |
 | D18 | GE rows are swappable (slot kind `ge`): any course labelled for that GE area (current or older label; lower- vs upper-division by the row's `UD`) can fill one, validated like any swap. The slot keeps its original wording in `label` so it can be swapped again. **Gemini only edits `major_elective` and `free_elective` slots**; GE is the student's own choice | requested; keeps the model's work small and the student in control of GE | [§5](#5-api-surface), [§8](#8-frontend) |
 | D19 | **Real local redaction** before any transcript text reaches Gemini: GLiNER `nvidia/gliner-PII` (from Hugging Face) runs in the API process on the text pdfplumber extracted. Labels: person, student id, SSN, email, phone, address, date of birth. Names get a second pass at threshold 0.3 (other labels 0.5; lower flagged grades as IDs); spans are clipped to a line; course codes, grades, terms and the institution name are never redacted. **Fail closed**: if the model cannot load or run, the upload is refused (503 `redaction_unavailable`) and nothing is sent. `REDACTOR=stub` turns it off for tests and demos | requested; real student data must not reach an LLM unredacted | [§7](#7-security--privacy), [§1.2](#12-flow-a--transcript-upload) |
+| D20 | **Firebase Authentication** replaces our own passwords/JWTs (and is the hackathon's Google service instead of Cloud Run). Browser: Firebase web SDK; API: `GET /auth/me` plus Firebase ID-token verification on every route; `/auth/signup` and `/auth/login` removed. `users` gains `firebase_uid`, `password_hash` becomes optional (existing accounts link by email on first sign-in; a different Firebase account claiming an existing linked email gets a 409, never the old data) | requested: simpler, a Google service, and no password handling of our own | [§5](#5-api-surface), [§7](#7-security--privacy) |
 
 ## Open questions
 
