@@ -121,6 +121,11 @@ def ingest_program(db: Session, rec: dict, code_to_id: dict[str, int], report: I
     if req and pool_id is None:
         report.programs_without_elective_pool += 1
 
+    major_codes = {
+        _code(c) for s in sections_raw if section_kind(s.get("heading")) != "ge"
+        for r in s.get("rows", []) if r.get("type") == "course" for c in r.get("codes", [])
+    }
+
     roadmaps_raw = rec.get("roadmaps") or []
     default_index = choose_default_roadmap([r["name"] for r in roadmaps_raw]) if roadmaps_raw else None
     for ri, r in enumerate(roadmaps_raw):
@@ -138,7 +143,7 @@ def ingest_program(db: Session, rec: dict, code_to_id: dict[str, int], report: I
                     codes = [_code(c) for c in item.get("codes", [])]
                     report.unresolved_codes.update(c for c in codes if c not in code_to_id)
                     title = item.get("title") or ", ".join(codes) or "Untitled"  # some scraped course rows have no title
-                    sc = classify_slot(codes, title, item.get("tags") or [], pool_id is not None)
+                    sc = classify_slot(codes, title, item.get("tags") or [], pool_id is not None, major_codes)
                     t.slots.append(RoadmapSlot(
                         position=i, codes=codes, title=title, tags=item.get("tags") or [], footnotes=item.get("footnotes") or [],
                         units=item.get("units_min") or 0, seats=parse_seats(title) if sc.swappable else 1,

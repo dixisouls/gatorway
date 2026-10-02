@@ -79,3 +79,11 @@ def test_alternate_rows_that_start_with_or_are_never_swappable():
         sc = classify_slot([], title, [], True)
         assert (sc.slot_kind, sc.swappable) == ("fixed", False)
     assert classify_slot([], "SF State Studies or University Elective", [], True).swappable is True
+
+
+def test_course_counts_toward_major_when_it_is_in_the_programs_requirement_sections():
+    # the roadmap tag "Core Computer Science Requirement" never says "major", but the degree requirements list the course
+    in_reqs = classify_slot(["CSC 101"], "Intro", ["Core Computer Science Requirement"], True, major_codes={"CSC 101"})
+    assert in_reqs.counts_toward_major is True and in_reqs.slot_kind == "fixed" and in_reqs.swappable is False
+    assert classify_slot(["CSC 101"], "Intro", ["Core Computer Science Requirement"], True, major_codes=set()).counts_toward_major is False
+    assert classify_slot(["ART 100"], "Art", ["GE 3"], True, major_codes={"CSC 101"}).counts_toward_major is False

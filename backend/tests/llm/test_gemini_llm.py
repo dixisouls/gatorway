@@ -80,8 +80,10 @@ async def test_tool_error_is_returned_to_the_model():
     assert "error" in client.calls[1]["contents"][-1].parts[0].function_response.response["result"]
 
 
-async def test_gives_up_after_max_turns():
-    client = FakeClient([fn_call("get_baseline", {"session_id": "S"})] * 8)
+async def test_no_edits_when_the_closing_answer_has_nothing_usable():
+    from gatorway.llm.gemini import MAX_TURNS
+
+    client = FakeClient([fn_call("get_baseline", {"session_id": "S"})] * MAX_TURNS + [text_resp("I could not decide.")])
     async with Client(make_mcp()) as mcp:
         assert await GeminiLlm(client, "m").propose_edits("S", mcp, {"get_baseline"}, INTENT, None) == []
 
@@ -118,3 +120,23 @@ async def test_named_thinking_level_is_passed_through():
     client = FakeClient([text_resp('{"specialization": false, "topics": [], "keywords": [], "summary": ""}')])
     await GeminiLlm(client, "m", thinking_level="low").parse_intent("x")
     assert client.calls[0]["config"].thinking_config.thinking_level == types.ThinkingLevel.LOW
+
+
+async def test_when_the_tool_rounds_run_out_the_model_is_asked_for_its_answer_without_tools():
+    from gatorway.llm.gemini import MAX_TURNS
+
+    searching = [fn_call("get_baseline", {"session_id": "S1"}) for _ in range(MAX_TURNS)]
+    final = text_resp('{"edits":[{"slot_id":"f1","new_course_code":"CSC 667","reason":"web"}]}')
+    client = FakeClient(searching + [final])
+    async with Client(make_mcp()) as mcp:
+        edits = await GeminiLlm(client, "m").propose_edits("S1", mcp, {"get_baseline"}, INTENT, None)
+    assert [(e.slot_id, e.new_course_code) for e in edits] == [("f1", "CSC 667")]
+    last = client.calls[-1]
+    assert not last["config"].tools  # the closing call cannot search again
+    assert "final" in last["contents"][-1].parts[0].text.lower()
+
+
+def test_prompt_tells_the_model_to_search_all_swappable_slots_in_one_step():
+    from gatorway.llm.gemini import SYSTEM
+
+    assert "same step" in SYSTEM.lower() or "in parallel" in SYSTEM.lower()

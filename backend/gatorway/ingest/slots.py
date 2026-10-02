@@ -25,8 +25,10 @@ def parse_seats(title: str) -> int:
     return _NUMBER_WORDS.get(word) or int(word)
 
 
-def classify_slot(codes: list[str], title: str, tags: list[str], has_elective_pool: bool) -> SlotClass:
-    major = any("major" in t.lower() for t in tags)
+def classify_slot(codes: list[str], title: str, tags: list[str], has_elective_pool: bool, major_codes: set[str] | None = None) -> SlotClass:
+    """major_codes = courses listed in the program's non-GE requirement sections. Roadmap tags are inconsistent
+    ("Core Computer Science Requirement" never says "major"), so a listed course counts toward the major as well."""
+    major = any("major" in t.lower() for t in tags) or bool(major_codes and any(c in major_codes for c in codes))
     t = (title or "").lower()
     if codes:
         return SlotClass("fixed", False, major)
