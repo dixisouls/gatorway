@@ -64,3 +64,8 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 ## Task 11 — Transcript adapters
 - Added local PDF→text (`pdf.py`; scans/corrupt files rejected, no OCR), transcript normalisation (`extraction.py`: codes like `csc215` → `CSC 215`, only passing grades, retake after an F counts), the redaction port with a pass-through `StubRedactor` (logs a warning once that nothing is redacted), and `HttpExtractor` (API key header, every failure mode → `ExtractorError`).
 - TDD: tests failed (module missing), then 13/13 passed (HTTP tested with a mocked transport).
+
+## Task 12 — API foundation, auth, health
+- Added argon2 password hashing + JWT helpers + the `sfsu.edu`/subdomain email check; the app state/builder; a uniform error envelope (`{"error": {code, message, details}}`); auth deps and per-IP / per-user rate limiting; `/auth/signup`, `/auth/login`, `/auth/me`; `/health` (Postgres + Redis, 503 if either is down).
+- TDD: tests failed (package missing), then 27/27 passed (email tricks like `evilsfsu.edu` / `sfsu.edu.evil.com`, duplicate emails, identical login failures for wrong password vs unknown user, expired tokens, login rate limit, login still works with Redis down).
+- **Real boot check:** started `uvicorn` against the real Postgres and Redis — `/health` → ok/ok/ok; a real signup returned a token; an `@evilsfsu.edu` signup was rejected with `invalid_email`. The throwaway test user was deleted.
