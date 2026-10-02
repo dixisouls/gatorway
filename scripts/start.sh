@@ -13,6 +13,13 @@ UVICORN="$ROOT/venv/bin/uvicorn"
 # export .env so the extractor (which does not read .env itself) sees the Vertex settings and its API key
 set -a; . ./.env; set +a
 
+# a server left over from an earlier run would silently answer instead of the new one (with old code), so refuse to start over it
+for port in 3000 8000 8001 8080; do
+  if pid=$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1) && [ -n "$pid" ]; then
+    echo "Port $port is already in use (pid $pid: $(ps -o command= -p "$pid" | cut -c1-60)). Stop it first, e.g. kill $pid"; exit 1
+  fi
+done
+
 mkdir -p logs
 PIDS=()
 

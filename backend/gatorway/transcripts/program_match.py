@@ -38,6 +38,8 @@ def rank_programs(raw: str | None, programs: list[dict], limit: int = LIMIT, min
     for p in programs:
         have = _tokens(p["title"])
         have_set = set(have)
+        if not (want_set - _DEGREE_WORDS) & have_set:  # sharing only "Bachelor of Science" says nothing about the field
+            continue
         union = want_set | have_set
         jaccard = len(want_set & have_set) / len(union) if union else 0.0
         similarity = SequenceMatcher(None, " ".join(sorted(want_set)), " ".join(sorted(have_set))).ratio()

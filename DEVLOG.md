@@ -154,3 +154,8 @@ Built from `docs/superpowers/plans/2026-10-02-frontend.md`, test-first, one comm
 - **Degree step is step by step:** choosing a degree clears the list and search; only the chosen program ("Change program" to go back) and its roadmap options remain.
 - **AI picks are golden** (gold border, ring and glow).
 - **Personalising:** the roadmap shows at once while Gemini works (with the rotating-words chip), instead of the blocking overlay. When Gemini finishes, one full-screen shimmer plays and the picks replace the baseline cards mid-sweep. Saved roadmaps and runs without an interest skip it. `PersonalizationOverlay` and its CSS are no longer used.
+
+## Degree from the transcript
+- The extractor now also returns `program` (the degree as printed). `rank_programs` (`transcripts/program_match.py`) matches it to our programs deterministically and the API returns up to 3 scored candidates; the Planner asks "Is this your degree?" before the program step (yes → straight to the roadmap options with that program preselected; no / nothing found / skipped → the normal picker). New column `users.transcript_program`, added to existing databases by `init_db`.
+- **Found while testing live:** a stale extractor process from an earlier run was still holding port 8080 and answering with old code (no `program` field). `scripts/start.sh` now refuses to start if any of its ports is already in use, and says which process holds it.
+- Also found: a program that shares only "Bachelor of Science" with the degree (e.g. Chemistry for Computer Science) was offered as an alternative; candidates must now share the field of study.

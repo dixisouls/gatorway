@@ -51,3 +51,9 @@ def test_candidates_carry_a_score_and_at_most_three_are_returned():
 @pytest.mark.parametrize("raw", ["Underwater Basket Weaving", "", "   ", None, "Fall 2023"])
 def test_nothing_plausible_means_no_candidates(raw):
     assert rank_programs(raw, PROGRAMS) == []
+
+
+def test_a_program_that_shares_only_the_degree_words_is_not_a_candidate():
+    ids = [p["id"] for p in rank_programs("B.S. Computer Science", PROGRAMS)]
+    assert 6 not in ids and 5 not in ids  # Biology and Art share "Bachelor of Science/Arts" but not the field
+    assert 1 in ids and 4 in ids  # Computer Engineering shares "computer", so it stays as a close alternative
