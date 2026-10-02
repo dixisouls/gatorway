@@ -30,9 +30,10 @@ interface Props {
   spec: RunSpec;
   onRerun: (next: Omit<RunSpec, "key">) => void;
   onOpenHistory: () => void;
+  onAddTranscript?: () => void; // offered when no transcript is on file
 }
 
-export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
+export function RoadmapView({ spec, onRerun, onOpenHistory, onAddTranscript }: Props) {
   const run = usePathwayRun(spec);
   const { result, baseline } = run;
   const pathway = result?.pathway ?? baseline;
@@ -45,6 +46,7 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
   const doneKey = `gatorway.done.${spec.programId}.${spec.roadmapId ?? "default"}`;
   const [done, setDone] = useState<ReadonlySet<string>>(() => readSet(doneKey));
   const [creditAreas, setCreditAreas] = useState<string[]>([]);
+  const [courseCount, setCourseCount] = useState<number | null>(null);
 
   // GE credit lines on the transcript ("GE 4") hint at which GE rows may already be met.
   useEffect(() => {
@@ -52,7 +54,9 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
     api
       .myCourses()
       .then((r) => {
-        if (alive) setCreditAreas([...new Set(r.courses.filter((c) => c.flagged).flatMap((c) => geAreas(c.code)))]);
+        if (!alive) return;
+        setCourseCount(r.count);
+        setCreditAreas([...new Set(r.courses.filter((c) => c.flagged).flatMap((c) => geAreas(c.code)))]);
       })
       .catch(() => {});
     return () => {
@@ -114,6 +118,14 @@ export function RoadmapView({ spec, onRerun, onOpenHistory }: Props) {
             </span>
             {pathway.total_units_required && <span className="rounded-full bg-white/80 px-3 py-1 text-muted ring-1 ring-line">{fmtUnits(pathway.total_units_required)} units to graduate</span>}
           </div>
+          {courseCount === 0 && onAddTranscript && (
+            <p className="mt-4 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white/70 px-4 py-2.5 text-sm text-muted ring-1 ring-line">
+              <span>Exploring without a transcript — nothing is marked completed.</span>
+              <button type="button" onClick={onAddTranscript} className="font-medium text-purple underline-offset-4 hover:underline">
+                Add a transcript
+              </button>
+            </p>
+          )}
           <div className="mt-5 flex flex-wrap gap-2">
             <Button variant="soft" onClick={onOpenHistory}>
               Past roadmaps

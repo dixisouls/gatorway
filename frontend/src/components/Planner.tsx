@@ -87,12 +87,12 @@ export function Planner() {
         )}
         <AnimatePresence mode="wait">
           <motion.div key={step === "roadmap" ? spec?.key : step} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }}>
-            {step === "transcript" && <TranscriptStep onDone={() => setStep("program")} />}
+            {step === "transcript" && <TranscriptStep onDone={() => setStep("program")} onSkip={() => setStep("program")} />}
             {step === "program" && <ProgramStep onChosen={(p) => { setProgram(p); setStep("interest"); }} />}
             {step === "interest" && program && (
               <InterestStep programTitle={program.title} onSubmit={(interest) => start({ programId: program.id, roadmapId: program.roadmapId, interest })} />
             )}
-            {step === "roadmap" && spec && <RoadmapView spec={spec} onRerun={start} onOpenHistory={() => setHistory(true)} />}
+            {step === "roadmap" && spec && <RoadmapView spec={spec} onRerun={start} onOpenHistory={() => setHistory(true)} onAddTranscript={() => setStep("transcript")} />}
           </motion.div>
         </AnimatePresence>
       </main>

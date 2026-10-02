@@ -21,7 +21,7 @@ export const EXTRACT_PHRASES = [
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type Phase = "idle" | "extracting" | "done" | "error";
 
-export function TranscriptStep({ onDone, minMs = 1800 }: { onDone: () => void; minMs?: number }) {
+export function TranscriptStep({ onDone, onSkip, minMs = 1800 }: { onDone: () => void; onSkip?: () => void; minMs?: number }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [summary, setSummary] = useState<TranscriptSummary | null>(null);
   const [saved, setSaved] = useState<TranscriptSummary | null>(null);
@@ -97,6 +97,11 @@ export function TranscriptStep({ onDone, minMs = 1800 }: { onDone: () => void; m
                   </Button>
                 </div>
               )}
+                          {onSkip && (
+                <button type="button" onClick={onSkip} className="mx-auto mt-6 block text-sm text-muted transition hover:text-purple">
+                  Skip for now — I just want to explore
+                </button>
+              )}
             </motion.div>
           )}
 
@@ -156,6 +161,12 @@ export function TranscriptStep({ onDone, minMs = 1800 }: { onDone: () => void; m
               <Button className="mt-6" onClick={() => setPhase("idle")}>
                 Try again
               </Button>
+              {onSkip && (
+                <button type="button" onClick={onSkip} className="mx-auto mt-4 block text-sm text-muted transition hover:text-purple">
+                  Skip for now — I just want to explore
+                </button>
+              )}
+
             </motion.div>
           )}
         </AnimatePresence>

@@ -77,3 +77,24 @@ test("offers to reuse the courses already saved", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "Use my 6 saved courses" }));
   expect(onDone).toHaveBeenCalled();
 });
+
+test("a newcomer can skip the transcript and look around", async () => {
+  const onSkip = vi.fn();
+  render(<TranscriptStep onDone={() => {}} onSkip={onSkip} minMs={0} />);
+  await userEvent.click(screen.getByRole("button", { name: /skip for now/i }));
+  expect(onSkip).toHaveBeenCalledTimes(1);
+  expect(uploadTranscript).not.toHaveBeenCalled();
+});
+
+test("there is no skip button while a transcript is being read", async () => {
+  uploadTranscript.mockReturnValue(new Promise(() => {}));
+  render(<TranscriptStep onDone={() => {}} onSkip={() => {}} minMs={0} />);
+  await user().upload(screen.getByLabelText("Transcript PDF"), pdf());
+  await screen.findByText(`${EXTRACT_PHRASES[0]}…`);
+  expect(screen.queryByRole("button", { name: /skip for now/i })).not.toBeInTheDocument();
+});
+
+test("without an onSkip handler the step has no skip button", () => {
+  render(<TranscriptStep onDone={() => {}} minMs={0} />);
+  expect(screen.queryByRole("button", { name: /skip for now/i })).not.toBeInTheDocument();
+});

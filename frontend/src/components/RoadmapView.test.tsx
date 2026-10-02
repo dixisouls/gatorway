@@ -158,3 +158,19 @@ test("a GE row shows the matching transcript credit and its completion is rememb
   render(<RoadmapView spec={s} onRerun={noop} onOpenHistory={noop} />); // reopened later
   expect(await screen.findByText(/✓ Completed/)).toBeInTheDocument();
 });
+
+test("without a transcript the roadmap says nothing is marked completed and offers to add one", async () => {
+  const onAddTranscript = vi.fn();
+  render(<RoadmapView spec={spec({ saved: result() })} onRerun={noop} onOpenHistory={noop} onAddTranscript={onAddTranscript} />);
+  expect(await screen.findByText(/Exploring without a transcript/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Add a transcript" }));
+  expect(onAddTranscript).toHaveBeenCalledTimes(1);
+});
+
+test("with a transcript on file there is no exploring notice", async () => {
+  myCourses.mockResolvedValue({ count: 3, courses: [], flagged: [] });
+  render(<RoadmapView spec={spec({ saved: result() })} onRerun={noop} onOpenHistory={noop} onAddTranscript={noop} />);
+  await screen.findByText("Drawing");
+  await new Promise((r) => setTimeout(r, 50));
+  expect(screen.queryByText(/Exploring without a transcript/)).not.toBeInTheDocument();
+});

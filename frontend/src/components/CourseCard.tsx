@@ -22,8 +22,6 @@ export interface CourseCardProps {
   hint?: string; // e.g. "You have GE 4 credit on your transcript"
 }
 
-const shimmer = "animate-shimmer bg-gradient-to-r from-purple-soft/40 via-white to-purple-soft/40 bg-[length:200%_100%]";
-
 export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOpen, selectable, done, onToggleDone, hint }: CourseCardProps) {
   const geRow = isGeSlot(slot);
   const passed = slot.status === "passed" || !!done;
@@ -32,11 +30,12 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
   const kind = kindLabel(slot);
   const codesKey = slot.codes.join("|");
   const [expanded, setExpanded] = useState(false);
+  const [wanted, setWanted] = useState(false); // hovering or focusing starts the fetch, so the click can open it at once
   const [loaded, setLoaded] = useState<{ key: string; data: Record<string, CourseDetail> } | null>(null);
   const details = loaded?.key === codesKey ? loaded.data : null;
 
   useEffect(() => {
-    if (!expanded || !codesKey || details !== null) return;
+    if (!(expanded || wanted) || !codesKey || details !== null) return;
     let alive = true;
     api
       .courses(codesKey.split("|"))
@@ -45,7 +44,7 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
     return () => {
       alive = false;
     };
-  }, [expanded, codesKey, details]);
+  }, [expanded, wanted, codesKey, details]);
 
   const tone = selectable?.selected
     ? "border-purple/40 bg-gradient-to-br from-purple-soft/80 to-white ring-2 ring-purple/20"
@@ -55,22 +54,23 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
       ? "border-purple/10 bg-purple-soft/50"
       : open
         ? "border-dashed border-purple/25 bg-white/50"
-        : "border-line bg-white/80";
+        : "border-line bg-white/90";
 
   return (
     <motion.article
-      layout
       aria-busy={generating}
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: enterDelay, type: "spring", stiffness: 220, damping: 26, layout: { type: "spring", stiffness: 260, damping: 30 } }}
-      className={`relative overflow-hidden rounded-[1.4rem] border shadow-soft backdrop-blur ${tone} ${expanded ? "sm:col-span-2" : ""}`}
+      transition={{ delay: enterDelay, type: "spring", stiffness: 220, damping: 26 }}
+      className={`relative overflow-hidden rounded-[1.4rem] border shadow-soft ${tone}`}
     >
       {generating && <span aria-hidden="true" className="pointer-events-none absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/80 to-transparent bg-[length:200%_100%]" />}
       <button
         type="button"
         disabled={!clickable}
         aria-expanded={open ? undefined : expanded}
+        onMouseEnter={() => setWanted(true)}
+        onFocus={() => setWanted(true)}
         onClick={() => (open ? onOpen() : setExpanded((v) => !v))}
         className="group flex min-h-[7.5rem] w-full flex-col p-4 text-left disabled:cursor-default"
       >
@@ -99,6 +99,7 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
           )}
           {open && slot.swappable && <span className="text-muted opacity-60 transition-opacity group-hover:opacity-100">See options →</span>}
           {geRow && !passed && <span className="text-muted opacity-60 transition-opacity group-hover:opacity-100">See courses →</span>}
+          {!open && expanded && details === null && <span className="text-muted">Loading details…</span>}
           {!open && !expanded && <span className="text-muted opacity-0 transition-opacity group-hover:opacity-100">Tap for details</span>}
           {!open && kind && !isPick && <span className="text-muted">{kind}</span>}
         </span>
@@ -129,12 +130,11 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
       )}
 
       <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div key="more" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="overflow-hidden">
+        {expanded && details !== null && (
+          <motion.div key="more" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ height: { duration: 0.32, ease: [0.22, 1, 0.36, 1] }, opacity: { duration: 0.2 } }} className="overflow-hidden">
             <div className="space-y-3 border-t border-line px-4 pb-4 pt-3 text-sm">
-              {details === null && <div className={`h-12 rounded-xl ${shimmer}`} />}
               {slot.codes.map((code) => {
-                const d = details?.[code];
+                const d = details[code];
                 if (!d) return null;
                 return (
                   <div key={code} className="space-y-2">

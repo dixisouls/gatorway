@@ -130,3 +130,33 @@ test("an option in a Choose one group can be chosen and shows it was", async () 
   rerender(<CourseCard slot={slot({ units: 0 })} {...base} selectable={{ selected: true, onSelect }} />);
   expect(screen.getByText("✓ Your choice")).toBeInTheDocument();
 });
+
+test("expanding opens the card in place: it keeps its column and does not blur what is behind it", async () => {
+  render(<CourseCard slot={slot()} {...base} />);
+  const article = screen.getByRole("button", { name: /Data Structures/ }).closest("article")!;
+  await userEvent.click(screen.getByRole("button", { name: /Data Structures/ }));
+  await screen.findByText("Lists, trees and graphs.");
+  expect(article.className).not.toMatch(/col-span/); // changing the grid span made the whole row jump
+  expect(article.className).not.toMatch(/backdrop-blur/); // a blur repaints every frame while the height animates
+});
+
+test("the details open in one smooth motion once loaded, with a small cue until then", async () => {
+  let finish: (v: unknown) => void = () => {};
+  courses.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+  render(<CourseCard slot={slot()} {...base} />);
+  await userEvent.click(screen.getByRole("button", { name: /Data Structures/ }));
+  expect(screen.getByText("Loading details…")).toBeInTheDocument();
+  expect(screen.queryByText("Prerequisite: CSC 215.")).not.toBeInTheDocument(); // no half-empty panel that would jump later
+  finish({ courses: { "CSC 220": detail } });
+  expect(await screen.findByText("Lists, trees and graphs.")).toBeInTheDocument();
+  expect(screen.queryByText("Loading details…")).not.toBeInTheDocument();
+});
+
+test("hovering a card starts loading its details, so the click can open it at once", async () => {
+  render(<CourseCard slot={slot()} {...base} />);
+  await userEvent.hover(screen.getByRole("button", { name: /Data Structures/ }));
+  await vi.waitFor(() => expect(courses).toHaveBeenCalledTimes(1));
+  await userEvent.click(screen.getByRole("button", { name: /Data Structures/ }));
+  expect(await screen.findByText("Lists, trees and graphs.")).toBeInTheDocument();
+  expect(courses).toHaveBeenCalledTimes(1); // not fetched again
+});
