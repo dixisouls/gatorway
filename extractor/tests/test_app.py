@@ -31,6 +31,18 @@ def test_extractor_returns_structured_json_and_guards_the_key():
 
 def test_extractor_not_sfsu_is_reported_not_errored():
     fc = FakeClient('{"is_sfsu_transcript": false, "courses": []}')
-    r = TestClient(create_app(client=fc, model="m", api_key="")).post("/extract", json={"text": "UC Berkeley transcript"})
+    r = TestClient(create_app(client=fc, model="m", api_key="", allow_anonymous=True)).post("/extract", json={"text": "UC Berkeley transcript"})
     assert r.status_code == 200 and r.json() == {"is_sfsu_transcript": False, "courses": []}
 
+
+
+def test_the_extractor_refuses_to_start_without_an_api_key_unless_anonymous_is_explicit(monkeypatch):
+    import pytest
+
+    monkeypatch.delenv("EXTRACTOR_API_KEY", raising=False)
+    monkeypatch.delenv("EXTRACTOR_ALLOW_ANONYMOUS", raising=False)
+    with pytest.raises(RuntimeError, match="EXTRACTOR_API_KEY"):
+        create_app(client=FakeClient("{}"), model="m")
+    create_app(client=FakeClient("{}"), model="m", allow_anonymous=True)
+    monkeypatch.setenv("EXTRACTOR_ALLOW_ANONYMOUS", "true")
+    create_app(client=FakeClient("{}"), model="m")

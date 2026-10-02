@@ -59,6 +59,8 @@ def edit_violations(pathway: Pathway, edit: Edit, passed: set[str], catalog: Cat
             out.append(Violation(rule="pool", slot_id=slot.slot_id, message=f"{code} is not in this program's elective list"))
     elif slot.slot_kind != "free_elective":
         out.append(Violation(rule="slot", slot_id=slot.slot_id, message=f"slot kind {slot.slot_kind} is not swappable"))
+    if pathway.program_level == "undergraduate" and info.number_int is not None and info.number_int >= 700:
+        out.append(Violation(rule="level", slot_id=slot.slot_id, message=f"{code} is a graduate course (700+); this is an undergraduate program"))
     taken = set(passed) | {c for s in pathway.all_slots() for c in s.codes}
     if code in taken:
         out.append(Violation(rule="duplicate", slot_id=slot.slot_id, message=f"{code} is already passed or planned"))

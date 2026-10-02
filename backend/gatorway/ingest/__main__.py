@@ -1,4 +1,4 @@
-"""python -m gatorway.ingest [--scrape-dir DIR] [--embeddings gemini|hashing|none]"""
+"""python -m gatorway.ingest [--scrape-dir DIR] [--embeddings local|gemini|hashing|none]"""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,7 @@ from .embeddings import build_embedder, embed_courses
 from .loader import IngestReport, ingest_all, load_scrape_dir
 
 
-def run(scrape_dir: str, embeddings: str = "gemini", engine=None) -> tuple[IngestReport, int]:
+def run(scrape_dir: str, embeddings: str = "local", engine=None) -> tuple[IngestReport, int]:
     settings = get_settings()
     engine = engine or get_engine()
     init_db(engine)
@@ -23,14 +23,14 @@ def run(scrape_dir: str, embeddings: str = "gemini", engine=None) -> tuple[Inges
         db.commit()
         embedded = 0
         if embeddings != "none":
-            embedded = embed_courses(db, build_embedder(embeddings, settings))
+            embedded = embed_courses(db, build_embedder(embeddings, settings), progress=True)
     return report, embedded
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gatorway.ingest")
     ap.add_argument("--scrape-dir", default=get_settings().scrape_dir)
-    ap.add_argument("--embeddings", choices=["gemini", "hashing", "none"], default=get_settings().embed_provider)
+    ap.add_argument("--embeddings", choices=["local", "gemini", "hashing", "none"], default=get_settings().embed_provider)
     args = ap.parse_args(argv)
     report, embedded = run(args.scrape_dir, args.embeddings)
     print(f"courses={report.courses} programs={report.programs} sections={report.sections} roadmaps={report.roadmaps} slots={report.slots}")

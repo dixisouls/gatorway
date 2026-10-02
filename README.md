@@ -7,10 +7,10 @@ Design: `ARCHITECTURE.md`. Plan: `docs/superpowers/plans/`.
 
 1. **Services** (Postgres + pgvector, Redis; data kept in named volumes):
    `docker compose up -d`
-2. **Python env** (once): `venv/bin/pip install -e "backend[dev]"`; copy `.env.example` to `.env` and fill in `GEMINI_API_KEY`, `JWT_SECRET`.
+2. **Python env** (once): `venv/bin/pip install -e "backend[dev]"`; copy `.env.example` to `.env` and set `GOOGLE_CLOUD_PROJECT` (Gemini uses your gcloud ADC login, or set `GEMINI_API_KEY` instead) and a strong `JWT_SECRET`.
 3. **Load the data** (once, and again after re-scraping):
    `cd backend && ../venv/bin/python -m gatorway.ingest --scrape-dir ../scraping/sfsu_output`
-   (`--embeddings hashing` runs offline without a Gemini key; the default `gemini` gives real semantic search. If you ingest with `hashing`, also set `EMBED_PROVIDER=hashing` in `.env` so the MCP server embeds search queries the same way.)
+   (Embeddings run locally with sentence-transformers (`BAAI/bge-base-en-v1.5`, downloaded on first use; progress bar shown). Set `EMBED_PROVIDER` the same way for ingest and the MCP server; `--embeddings hashing` is an instant offline stand-in.)
 4. **MCP server** (terminal 1): `cd backend && ../venv/bin/python -m gatorway.mcp_server`
 5. **API** (terminal 2): `cd backend && ../venv/bin/uvicorn gatorway.api.main:create_app --factory --port 8000` - docs at http://127.0.0.1:8000/docs
 6. **Extractor**: deployed on Cloud Run (see `extractor/`), or locally:

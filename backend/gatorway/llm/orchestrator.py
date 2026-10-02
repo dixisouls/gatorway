@@ -1,6 +1,7 @@
 """POST /pathways logic (ARCHITECTURE.md section 4.4): baseline -> intent -> Gemini edits -> authoritative validation."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
@@ -17,6 +18,7 @@ from .ports import Intent, LlmPort
 log = logging.getLogger(__name__)
 
 MAX_RETRIES = 2  # extra Gemini rounds after the first, fed with the validator's reasons
+EDIT_TIMEOUT_S = 45.0  # whole personalisation (all Gemini rounds); after that we show the baseline
 
 
 class ServiceError(RuntimeError):
@@ -54,43 +56,57 @@ class PathwayService:
         mcp_factory: Callable[[], AbstractAsyncContextManager[Any]],
         allowed_tools: set[str],
         model_name: str = "gemini",
+        edit_timeout_s: float = EDIT_TIMEOUT_S,
     ):
         self._llm, self._cache, self._catalog = llm, cache, catalog_provider
         self._mcp_factory, self._allowed, self._model = mcp_factory, allowed_tools, model_name
+        self._edit_timeout = edit_timeout_s
 
     async def create(self, *, program_id: int, roadmap_id: int | None, passed: list[str], interest: str | None, data_version: str) -> PathwayResult:
-        async with self._mcp_factory() as mcp:
-            baseline = await self._build_baseline(mcp, program_id, roadmap_id, passed)
-            if not (interest or "").strip():
-                return PathwayResult(pathway=baseline)
+        try:
+            async with self._mcp_factory() as mcp:
+                return await self._create(mcp, program_id, roadmap_id, passed, interest, data_version)
+        except ServiceError:
+            raise
+        except Exception as e:  # tool server unreachable, protocol errors, ...
+            log.exception("pathway tools unavailable")
+            raise ServiceError("pathway tools are unavailable") from e
 
-            if not any(sl.swappable and sl.status == "planned" for sl in baseline.all_slots()):
-                return PathwayResult(pathway=baseline, note="This roadmap has no swappable elective slots; showing the standard roadmap.")
+    async def _create(self, mcp: Any, program_id: int, roadmap_id: int | None, passed: list[str], interest: str | None, data_version: str) -> PathwayResult:
+        baseline = await self._build_baseline(mcp, program_id, roadmap_id, passed)
+        if not (interest or "").strip():
+            return PathwayResult(pathway=baseline)
+        if not any(sl.swappable and sl.status == "planned" for sl in baseline.all_slots()):
+            return PathwayResult(pathway=baseline, note="This roadmap has no swappable elective slots; showing the standard roadmap.")
 
+        try:
+            intent = await self._intent(interest)
+        except Exception as e:  # Gemini down / bad output: still useful to show the baseline
+            log.warning("intent parsing failed: %s", e)
+            return PathwayResult(pathway=baseline, note="Your interest could not be interpreted right now; showing the standard roadmap.")
+        if not intent.specialization:
+            return PathwayResult(pathway=baseline, intent=intent, note="No specific interest detected; showing the standard roadmap.")
+
+        key = Cache.pathway_key(program_id, baseline.roadmap_id, passed, self._cache.intent_hash(interest, self._model), data_version)
+        hit = self._cache.get_pathway(key)
+        if hit is not None:
+            return PathwayResult.model_validate({**hit, "cached": True})
+
+        if not self._cache.acquire_lock(key):
+            waited = await self._cache.wait_for_pathway(key)
+            if waited is not None:
+                return PathwayResult.model_validate({**waited, "cached": True})
+        try:
             try:
-                intent = await self._intent(interest)
-            except Exception as e:  # Gemini down / bad output: still useful to show the baseline
-                log.warning("intent parsing failed: %s", e)
-                return PathwayResult(pathway=baseline, note="Your interest could not be interpreted right now; showing the standard roadmap.")
-            if not intent.specialization:
-                return PathwayResult(pathway=baseline, intent=intent, note="No specific interest detected; showing the standard roadmap.")
-
-            key = Cache.pathway_key(program_id, baseline.roadmap_id, passed, self._cache.intent_hash(interest, self._model), data_version)
-            hit = self._cache.get_pathway(key)
-            if hit is not None:
-                return PathwayResult.model_validate({**hit, "cached": True})
-
-            if not self._cache.acquire_lock(key):
-                waited = await self._cache.wait_for_pathway(key)
-                if waited is not None:
-                    return PathwayResult.model_validate({**waited, "cached": True})
-            try:
-                result = await self._edit(mcp, baseline, passed, intent)
-                if result.note is None:  # never cache a degraded answer
-                    self._cache.set_pathway(key, result.model_dump(mode="json"))
-                return result
-            finally:
-                self._cache.release_lock(key)
+                result = await asyncio.wait_for(self._edit(mcp, baseline, passed, intent), self._edit_timeout)
+            except asyncio.TimeoutError:
+                log.warning("personalisation exceeded %.0fs", self._edit_timeout)
+                result = PathwayResult(pathway=baseline, intent=intent, note="Personalising took too long; showing the standard roadmap.")
+            if result.note is None:  # never cache a degraded or empty answer
+                self._cache.set_pathway(key, result.model_dump(mode="json"))
+            return result
+        finally:
+            self._cache.release_lock(key)
 
     # ------------------------------------------------------------------
     async def _call(self, mcp: Any, tool: str, args: dict) -> dict:
@@ -149,6 +165,8 @@ class PathwayService:
                 f"slot {d.edit.slot_id} <- {d.edit.new_course_code}: " + "; ".join(v.message for v in d.violations) for d in report.dropped
             ]
 
+        if not applied and note is None:
+            note = "No interest-matched electives fit your remaining slots; showing the standard roadmap."
         edited_slots = {e.slot_id for e in applied}
         return PathwayResult(
             pathway=current,

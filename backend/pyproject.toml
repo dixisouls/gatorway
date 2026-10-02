@@ -23,6 +23,8 @@ dependencies = [
   "argon2-cffi>=23",
   "PyJWT>=2.8",
   "anyio>=4",
+  "tqdm>=4",
+  "sentence-transformers>=3",
 ]
 
 [project.optional-dependencies]

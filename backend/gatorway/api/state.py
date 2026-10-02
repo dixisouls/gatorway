@@ -13,6 +13,7 @@ from gatorway.config import Settings, get_settings
 from gatorway.db.session import get_engine
 from gatorway.engine.models import Catalog
 from gatorway.engine.repository import get_catalog
+from gatorway.llm.client import gemini_configured, make_genai_client
 from gatorway.llm.gemini import GeminiLlm
 from gatorway.llm.orchestrator import PathwayService
 from gatorway.transcripts.extractor_client import ExtractorClient, HttpExtractor
@@ -32,24 +33,35 @@ class AppState:
 
 
 class UnavailableLlm:
-    """Used when GEMINI_API_KEY is not set. The orchestrator degrades to the baseline roadmap with a note."""
+    """Used when no Gemini credentials are configured. The orchestrator degrades to the baseline roadmap with a note."""
 
     async def parse_intent(self, interest: str):
-        raise RuntimeError("GEMINI_API_KEY is not set")
+        raise RuntimeError("Gemini is not configured")
 
     async def propose_edits(self, *args, **kwargs):
-        raise RuntimeError("GEMINI_API_KEY is not set")
+        raise RuntimeError("Gemini is not configured")
+
+
+PLACEHOLDER_SECRETS = {"dev-only-secret-change-me-0123456789abcdef", "change-me-to-a-long-random-string-0123456789"}
+
+
+def check_secrets(settings: Settings) -> None:
+    """Refuse to start with a JWT secret anyone could guess (the defaults are in the public repo)."""
+    if settings.jwt_secret in PLACEHOLDER_SECRETS or len(settings.jwt_secret) < 32:
+        raise RuntimeError(
+            "JWT_SECRET is missing, a placeholder, or shorter than 32 characters. Set a long random value in .env, e.g. "
+            "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
 
 
 def build_state(settings: Settings | None = None) -> AppState:
     settings = settings or get_settings()
+    check_secrets(settings)
     engine = get_engine()
     r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
     cache = Cache(r)
-    if settings.gemini_api_key:
-        from google import genai
-
-        llm = GeminiLlm(genai.Client(api_key=settings.gemini_api_key), settings.gemini_model)
+    if gemini_configured(settings):
+        llm = GeminiLlm(make_genai_client(settings), settings.gemini_model)
     else:
         llm = UnavailableLlm()
 

@@ -48,10 +48,14 @@ def _default_client():
     return genai.Client()  # reads GOOGLE_GENAI_USE_VERTEXAI / project / location, or GEMINI_API_KEY
 
 
-def create_app(client: Any = None, model: str | None = None, api_key: str | None = None) -> FastAPI:
+def create_app(client: Any = None, model: str | None = None, api_key: str | None = None, allow_anonymous: bool | None = None) -> FastAPI:
     app = FastAPI(title="gatorway-extractor")
     model = model or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     api_key = api_key if api_key is not None else os.getenv("EXTRACTOR_API_KEY", "")
+    if allow_anonymous is None:
+        allow_anonymous = os.getenv("EXTRACTOR_ALLOW_ANONYMOUS", "").lower() in ("1", "true", "yes")
+    if not api_key and not allow_anonymous:
+        raise RuntimeError("EXTRACTOR_API_KEY is not set. Set it, or set EXTRACTOR_ALLOW_ANONYMOUS=true for local development only.")
     holder = {"client": client}
 
     @app.get("/health")

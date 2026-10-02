@@ -72,3 +72,10 @@ def test_real_data_has_some_swappable_slots():
                             n += 1
     assert n > 1000
     print("swappable roadmap rows:", n)
+
+
+def test_alternate_rows_that_start_with_or_are_never_swappable():
+    for title in ("or University Elective if US History requirement is met", "Or SF State Studies or University Elective"):
+        sc = classify_slot([], title, [], True)
+        assert (sc.slot_kind, sc.swappable) == ("fixed", False)
+    assert classify_slot([], "SF State Studies or University Elective", [], True).swappable is True

@@ -166,3 +166,15 @@ def test_unit_warning_when_baseline_is_under_the_stated_minimum(catalog):
     sk = basic(); sk.total_units_required = 120
     base = build_baseline(sk, set(), catalog)
     assert any("requires 120" in w for w in validate_edits(base, [], set(), catalog).warnings)
+
+
+def test_graduate_courses_are_rejected_for_undergraduate_programs_only(catalog):
+    catalog.courses["CSC 850"] = CourseInfo(code="CSC 850", title="Advanced", units_min=3, units_max=3, number_int=850)
+    sk = basic()
+    sk.program_level = "undergraduate"
+    base = build_baseline(sk, set(), catalog)
+    r = validate_edits(base, [Edit(slot_id="f1", new_course_code="CSC 850")], set(), catalog)
+    assert r.dropped[0].violations[0].rule == "level"
+    sk2 = basic()
+    sk2.program_level = "graduate"
+    assert len(validate_edits(build_baseline(sk2, set(), catalog), [Edit(slot_id="f1", new_course_code="CSC 850")], set(), catalog).applied) == 1

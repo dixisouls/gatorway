@@ -55,7 +55,7 @@ class FakeLlm:
         return nxt
 
 
-def make_service(llm, cache, session_ok=True):
+def make_service(llm, cache, session_ok=True, **service_kwargs):
     mcp = FastMCP("fake")
 
     @mcp.tool
@@ -74,7 +74,7 @@ def make_service(llm, cache, session_ok=True):
             yield c
 
     return PathwayService(llm=llm, cache=cache, catalog_provider=lambda: CATALOG, mcp_factory=factory,
-                          allowed_tools={"get_baseline", "search_courses", "validate_edits"}, model_name="m")
+                          allowed_tools={"get_baseline", "search_courses", "validate_edits"}, model_name="m", **service_kwargs)
 
 
 build_baseline_fn = build_baseline
@@ -169,3 +169,37 @@ async def test_roadmap_without_swappable_slots_skips_gemini(r, monkeypatch):
     monkeypatch.setitem(globals(), "skeleton", lambda: fixed_only)
     res = await run(svc)
     assert "no swappable" in res.note and llm.parse_calls == 0 and llm.edit_calls == 0
+
+
+async def test_personalising_that_changes_nothing_explains_itself_and_is_not_cached(r):
+    llm = FakeLlm([[], []])
+    svc = make_service(llm, Cache(r))
+    first = await run(svc)
+    assert first.applied == [] and "No interest-matched" in first.note
+    second = await run(svc)
+    assert not second.cached and llm.edit_calls == 2
+
+
+async def test_a_slow_gemini_is_cut_off_with_a_note_and_the_result_is_not_cached(r):
+    llm = FakeLlm([[E1], [E1]], delay=0.5)
+    svc = make_service(llm, Cache(r), edit_timeout_s=0.05)
+    res = await run(svc)
+    assert res.applied == [] and "took too long" in res.note
+    again = await run(svc)
+    assert not again.cached
+
+
+async def test_an_unreachable_tool_server_becomes_a_service_error():
+    from gatorway.llm.orchestrator import ServiceError
+
+    class Down:
+        async def __aenter__(self):
+            raise ConnectionError("refused")
+
+        async def __aexit__(self, *a):
+            return False
+
+    svc = PathwayService(llm=FakeLlm([]), cache=Cache(fakeredis.FakeRedis(decode_responses=True)), catalog_provider=lambda: CATALOG,
+                         mcp_factory=lambda: Down(), allowed_tools=set(), model_name="m")
+    with pytest.raises(ServiceError):
+        await run(svc)

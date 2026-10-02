@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from gatorway.cache.store import Cache
 from gatorway.config import get_settings
 from gatorway.db.session import get_engine
-from gatorway.ingest.embeddings import build_embedder
+from gatorway.ingest.embeddings import assert_embedding_matches, build_embedder
 
 from .deps import Deps
 from .server import create_server
@@ -26,11 +26,14 @@ def main() -> None:
         with Session(engine) as s:
             yield s
 
+    embedder = build_embedder(settings.embed_provider, settings)
+    with session() as db:
+        assert_embedding_matches(db, embedder)  # refuse to start if the stored vectors came from a different embedder
     deps = Deps(
         db=session,
         cache=Cache(redis.Redis.from_url(settings.redis_url, decode_responses=True)),
-        embedder=build_embedder(settings.embed_provider, settings),
-        embed_model=settings.embed_model,
+        embedder=embedder,
+        embed_model=embedder.identity,  # cache key for query vectors: never reuse one from another embedder
     )
     create_server(deps).run(transport="http", host="127.0.0.1", port=8001)
 

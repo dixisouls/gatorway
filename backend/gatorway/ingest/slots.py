@@ -30,6 +30,8 @@ def classify_slot(codes: list[str], title: str, tags: list[str], has_elective_po
     t = (title or "").lower()
     if codes:
         return SlotClass("fixed", False, major)
+    if t.lstrip().startswith("or "):  # an alternate to the row above ("or University Elective if ..."), not an extra course
+        return SlotClass("fixed", False, major)
     if "university elective" in t:
         return SlotClass("free_elective", True, False)
     if "major elective" in t and has_elective_pool:

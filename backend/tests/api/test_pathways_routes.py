@@ -179,3 +179,21 @@ def test_a_roadmap_with_no_swappable_slots_says_so(world, db):
     h, _ = headers(client)
     body = client.post("/pathways", json={"program_id": pid, "interest": "drawing"}, headers=h).json()
     assert "no swappable" in body["note"] and llm.edit_calls == 0
+
+
+def test_a_down_tool_server_is_a_503_not_a_500(world, make_state, redis_client):
+    _, pid, _ = world
+
+    class Down:
+        async def __aenter__(self):
+            raise ConnectionError("refused")
+
+        async def __aexit__(self, *a):
+            return False
+
+    service = PathwayService(llm=ScriptedLlm(), cache=Cache(redis_client), catalog_provider=lambda: None, mcp_factory=lambda: Down(),
+                             allowed_tools=TOOLS, model_name="m")
+    client = TestClient(create_app(make_state(pathway_service=service), init_db_on_startup=False))
+    h, _ = headers(client)
+    r = client.post("/pathways", json={"program_id": pid}, headers=h)
+    assert r.status_code == 503 and r.json()["error"]["code"] == "pathway_unavailable"

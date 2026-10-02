@@ -90,3 +90,15 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 - Added an `EMBED_PROVIDER` setting (default `gemini`; `hashing` = offline) so the MCP server embeds search queries the same way the stored vectors were made. Test-first (failed with AttributeError, then passed).
 - **Real stack run (me, no Gemini key):** started the MCP server over HTTP and the API against your Postgres + Redis. `/health` all ok; real signup; real CS B.S. baseline via API → MCP: 8 terms, 37 slots, 7 swappable; a personalised request degraded to the baseline with the note "interest could not be interpreted"; the saved-pathway list worked. Servers stopped and test user/Redis keys removed.
 - **Still needs you / a key:** `GEMINI_API_KEY` for (1) real semantic embeddings (`python -m gatorway.ingest --embeddings gemini`), (2) the real Gemini edit loop, (3) the Cloud Run extractor's transcript reading; Cloud Run deployment itself (`gcloud` commands in the plan, Task 15 Step 8). Then run `venv/bin/python scripts/smoke_e2e.py`.
+
+## Review fix pass (after the final whole-branch review)
+Fresh reviewer (opus) found 1 critical + 6 important issues; all fixed test-first (RED→GREEN), suite 180 backend + 3 extractor green.
+- **Transcripts:** course-code parsing now handles `CSC-210`, `CSC_210`, `CSC210`, `MATH 226A`-style codes (a misread code silently dropped a passed course).
+- **Slots:** a requirement row starting with "or …" is classified as fixed, not a swappable elective.
+- **Validator:** undergraduate programs can no longer receive 700-level (graduate) replacements.
+- **Orchestrator:** an empty interest-matched result gives a note and is not cached; Gemini edit loop has a time limit; backend errors are wrapped as `ServiceError`.
+- **Embedding provenance:** the embedder identity is stored (`meta.embedding_identity`, marked `incomplete:` while a run is in progress); the MCP server refuses to start if its embedder differs from the stored vectors.
+- **Startup safety:** API refuses default/short `JWT_SECRET`; Gemini client has a 30 s timeout; the extractor refuses to start without `EXTRACTOR_API_KEY` unless `EXTRACTOR_ALLOW_ANONYMOUS=true`.
+- **Gemini auth via ADC:** `llm/client.py` uses Vertex AI with your gcloud ADC login (`GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_PROJECT`), or an API key. Verified live: generation + embeddings worked through ADC.
+- **Local embeddings:** Gemini embeddings hit the per-minute quota, so embeddings now run locally (`LocalEmbedder`, sentence-transformers `BAAI/bge-base-en-v1.5`, 768-dim, default `EMBED_PROVIDER=local`), with a tqdm progress bar. You ran the ingest: 4,986 courses embedded, identity `local:BAAI/bge-base-en-v1.5:768`. I checked real searches ("writing poetry" → Creative Writing, "database design" → ISYS/CSC database courses).
+- **Still open:** real Gemini edit loop (needs a live run with ADC), Cloud Run deployment, `scripts/smoke_e2e.py`.
