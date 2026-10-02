@@ -9,6 +9,8 @@ from gatorway.ingest.loader import ingest_all
 from gatorway.transcripts.extraction import ExtractedCourse, ExtractedTranscript
 from gatorway.transcripts.extractor_client import ExtractorError
 
+from .conftest import bearer
+
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 TEXT = ["San Francisco State University", "Official Transcript", "CSC 101 Introduction to Computing A", "CSC 215 Intermediate Programming B"]
 
@@ -48,8 +50,7 @@ def upload(client, headers, pdf, name="t.pdf"):
 
 
 def auth(client, email="s@sfsu.edu"):
-    r = client.post("/auth/signup", json={"email": email, "password": "correct-horse-battery"})
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(email)
 
 
 def test_upload_saves_passed_courses_and_flags_unknown_codes(make_state, make_pdf, catalog):

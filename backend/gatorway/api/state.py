@@ -17,6 +17,7 @@ from gatorway.llm.client import gemini_configured, make_genai_client
 from gatorway.llm.gemini import GeminiLlm
 from gatorway.llm.orchestrator import PathwayService
 from gatorway.transcripts.extractor_client import ExtractorClient, HttpExtractor
+from gatorway.auth.firebase import FirebaseVerifier, TokenVerifier
 from gatorway.transcripts.pii import GlinerRedactor
 from gatorway.transcripts.redact import Redactor, StubRedactor
 
@@ -29,6 +30,7 @@ class AppState:
     cache: Cache
     limiter: RateLimiter
     redactor: Redactor
+    verifier: TokenVerifier
     extractor: ExtractorClient | None = None
     pathway_service: PathwayService | None = None
 
@@ -43,16 +45,10 @@ class UnavailableLlm:
         raise RuntimeError("Gemini is not configured")
 
 
-PLACEHOLDER_SECRETS = {"dev-only-secret-change-me-0123456789abcdef", "change-me-to-a-long-random-string-0123456789"}
-
-
-def check_secrets(settings: Settings) -> None:
-    """Refuse to start with a JWT secret anyone could guess (the defaults are in the public repo)."""
-    if settings.jwt_secret in PLACEHOLDER_SECRETS or len(settings.jwt_secret) < 32:
-        raise RuntimeError(
-            "JWT_SECRET is missing, a placeholder, or shorter than 32 characters. Set a long random value in .env, e.g. "
-            "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
-        )
+def check_auth(settings: Settings) -> None:
+    """Sign-in is Firebase: without a project id no token can be checked, so refuse to start."""
+    if not settings.firebase_project_id:
+        raise RuntimeError("FIREBASE_PROJECT_ID is not set. Use the projectId from your Firebase web app config (see .env.example).")
 
 
 def build_redactor(settings: Settings) -> Redactor:
@@ -65,7 +61,7 @@ def build_redactor(settings: Settings) -> Redactor:
 
 def build_state(settings: Settings | None = None) -> AppState:
     settings = settings or get_settings()
-    check_secrets(settings)
+    check_auth(settings)
     engine = get_engine()
     r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
     cache = Cache(r)
@@ -84,6 +80,6 @@ def build_state(settings: Settings | None = None) -> AppState:
         edit_timeout_s=settings.edit_timeout_s,
     )
     return AppState(
-        settings=settings, engine=engine, redis=r, cache=cache, limiter=RateLimiter(r), redactor=build_redactor(settings),
+        settings=settings, engine=engine, redis=r, cache=cache, limiter=RateLimiter(r), redactor=build_redactor(settings), verifier=FirebaseVerifier(settings.firebase_project_id),
         extractor=HttpExtractor(settings.extractor_url, settings.extractor_api_key), pathway_service=service,
     )

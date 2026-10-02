@@ -20,6 +20,8 @@ from gatorway.llm.ports import Intent
 from gatorway.mcp_server.deps import Deps
 from gatorway.mcp_server.server import create_server
 
+from .conftest import bearer
+
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 TOOLS = {"get_baseline", "get_requirements", "search_courses", "validate_edits"}
 
@@ -73,8 +75,8 @@ def world(engine, db, redis_client, make_state):
 
 
 def headers(client, email="s@sfsu.edu"):
-    r = client.post("/auth/signup", json={"email": email, "password": "correct-horse-battery"})
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}, r.json()["user"]["id"]
+    h = bearer(email)
+    return h, client.get("/auth/me", headers=h).json()["id"]
 
 
 def slots(result):

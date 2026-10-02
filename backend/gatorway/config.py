@@ -24,8 +24,9 @@ class Settings(BaseSettings):
     local_embed_model: str = "BAAI/bge-base-en-v1.5"  # 768-dim sentence-transformers model
     embed_provider: str = "local"  # local | gemini | hashing (offline stand-in); must match how the stored course vectors were made
 
-    jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"
-    jwt_ttl_minutes: int = 1440
+    # Sign-in is Firebase Authentication. The backend only needs the project id to check ID tokens (no secret, no service account).
+    firebase_project_id: str = ""
+    require_email_verified: bool = False  # off: any @sfsu.edu-style address is let in, as before
 
     # transcript redaction: "gliner" = local PII model (nvidia/gliner-PII), "stub" = no redaction (tests and demos only)
     redactor: str = "gliner"
