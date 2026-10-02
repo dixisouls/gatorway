@@ -58,3 +58,8 @@ test("transcript lines the catalog cannot match are described, not called errors
   expect(creditKind(c("XYZ 100"))).toBe("Not in the SFSU catalog");
   expect(creditKind(c("CSC 101", false))).toBeNull();
 });
+
+test("a GE slot is labelled general education even after a course replaces its title", () => {
+  const ge = { slot_id: "g", codes: ["SOC 100"], title: "Introduction to Sociology", label: "GE Area 4: Social", units: 3, slot_kind: "ge" as const, swappable: true, pool_section_id: null, counts_toward_major: false, status: "replaced" as const };
+  expect(kindLabel(ge)).toBe("General education");
+});

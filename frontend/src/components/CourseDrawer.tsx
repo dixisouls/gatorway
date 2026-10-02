@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { fmtUnits, kindLabel, slotCodes } from "@/lib/format";
-import { geAreas, isGeSlot } from "@/lib/ge";
+import { geAreas, geLabel, isGeSlot } from "@/lib/ge";
 import type { AppliedEdit, Candidate, CourseDetail, SavedPathway, Slot } from "@/lib/types";
 import { useDebounced } from "@/lib/useDebounced";
 import { GeList } from "./GeList";
@@ -151,8 +151,12 @@ function DrawerBody({ slot, applied, pathwayId, canSwap, onSwapped, onClose, ge 
           <Button variant={ge.done ? "ghost" : "soft"} onClick={ge.onToggle}>
             {ge.done ? "Undo" : "Mark as completed"}
           </Button>
-          <h3 className="font-serif text-xl text-purple">Courses that count</h3>
-          <GeList areas={geAreas(slot.title)} />
+          {!showOptions && (
+            <>
+              <h3 className="font-serif text-xl text-purple">Courses that count</h3>
+              <GeList areas={geAreas(geLabel(slot))} />
+            </>
+          )}
         </section>
       )}
 

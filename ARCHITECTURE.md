@@ -324,6 +324,7 @@ Status: **Approved** (built)
 | D15 | MCP tools are one-module-each and auto-registered; Gemini's callable tools are a config allowlist, so tools can be added freely | requested | [§4.6](#46-adding-tools-later-d15) |
 | D16 | Streaming boxes are a client-side staggered reveal over a baseline preview endpoint; long steps show only rotating words, never progress bars | the full answer arrives at once; requested look | [§8](#8-frontend) |
 | D17 | Student swaps use the same validator as the model, and an already-swapped slot can be swapped again (known limit: a replacement's units become the slot's minimum for later swaps) | one source of truth for the rules | [§5](#5-api-surface), [§8](#8-frontend) |
+| D18 | GE rows are swappable (slot kind `ge`): any course labelled for that GE area (current or older label; lower- vs upper-division by the row's `UD`) can fill one, validated like any swap. The slot keeps its original wording in `label` so it can be swapped again. **Gemini only edits `major_elective` and `free_elective` slots**; GE is the student's own choice | requested; keeps the model's work small and the student in control of GE | [§5](#5-api-surface), [§8](#8-frontend) |
 
 ## Open questions
 

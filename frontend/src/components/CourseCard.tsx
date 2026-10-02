@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtUnits, kindLabel, slotCodes } from "@/lib/format";
-import { isGeSlot } from "@/lib/ge";
+import { geLabel, isGeSlot } from "@/lib/ge";
 import type { AppliedEdit, CourseDetail, Slot } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { Sparkle } from "./ui/Sparkle";
@@ -28,6 +28,8 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
   const open = slot.codes.length === 0;
   const clickable = !open || slot.swappable || geRow;
   const kind = kindLabel(slot);
+  const yourChoice = applied?.reason === "Your choice";
+  const requirement = geRow && slot.codes.length > 0 ? geLabel(slot).split(":")[0] : null; // which GE area this course fills
   const codesKey = slot.codes.join("|");
   const [expanded, setExpanded] = useState(false);
   const [wanted, setWanted] = useState(false); // hovering or focusing starts the fetch, so the click can open it at once
@@ -94,16 +96,17 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
           {passed && <span className="text-purple">✓ Completed</span>}
           {isPick && (
             <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[#7a6a3c] ring-1 ring-gold/40">
-              <Sparkle size={12} /> Picked for you
+              <Sparkle size={12} /> {yourChoice ? "Your choice" : "Picked for you"}
             </span>
           )}
           {open && slot.swappable && <span className="text-muted opacity-60 transition-opacity group-hover:opacity-100">See options →</span>}
-          {geRow && !passed && <span className="text-muted opacity-60 transition-opacity group-hover:opacity-100">See courses →</span>}
+          {geRow && open && !slot.swappable && !passed && <span className="text-muted opacity-60 transition-opacity group-hover:opacity-100">See courses →</span>}
+          {requirement && <span className="text-muted">{requirement}</span>}
           {!open && expanded && details === null && <span className="text-muted">Loading details…</span>}
           {!open && !expanded && <span className="text-muted opacity-0 transition-opacity group-hover:opacity-100">Tap for details</span>}
           {!open && kind && !isPick && <span className="text-muted">{kind}</span>}
         </span>
-        {isPick && applied?.reason && !expanded && <span className="mt-2 line-clamp-2 block text-xs leading-relaxed text-muted">{applied.reason}</span>}
+        {isPick && applied?.reason && !yourChoice && !expanded && <span className="mt-2 line-clamp-2 block text-xs leading-relaxed text-muted">{applied.reason}</span>}
       </button>
 
       {geRow && ((hint && !done) || onToggleDone) && (
@@ -158,7 +161,7 @@ export function CourseCard({ slot, applied, isPick, generating, enterDelay, onOp
                   </div>
                 );
               })}
-              {isPick && applied?.reason && (
+              {isPick && applied?.reason && !yourChoice && (
                 <p className="flex gap-2 rounded-xl bg-white/70 px-3 py-2 text-xs leading-relaxed text-muted">
                   <Sparkle size={13} className="mt-0.5 shrink-0" /> {applied.reason}
                 </p>

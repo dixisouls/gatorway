@@ -1,4 +1,4 @@
-import { geAreas, isGeSlot } from "@/lib/ge";
+import { creditHint, geAreas, isGeSlot } from "@/lib/ge";
 import type { Slot } from "@/lib/types";
 
 const slot = (over: Partial<Slot>): Slot => ({
@@ -20,4 +20,11 @@ test("only open rows that are about GE count as GE slots", () => {
   expect(isGeSlot(slot({ title: "GE Area 4: Social and Behavioral Sciences" }))).toBe(true);
   expect(isGeSlot(slot({ title: "GE Area 4", codes: ["SOC 100"] }))).toBe(false);
   expect(isGeSlot(slot({ title: "Select One:" }))).toBe(false);
+});
+
+test("a GE row stays a GE row after a course replaces it, because it keeps its requirement wording", () => {
+  const swapped = slot({ codes: ["SOC 100"], title: "Introduction to Sociology", label: "GE Area 4: Social and Behavioral Sciences", slot_kind: "ge", swappable: true, status: "replaced" });
+  expect(isGeSlot(swapped)).toBe(true);
+  expect(creditHint(swapped, ["4"])).toBe("You have GE 4 credit on your transcript");
+  expect(isGeSlot(slot({ codes: ["CSC 101"], title: "Introduction to Computing" }))).toBe(false);
 });

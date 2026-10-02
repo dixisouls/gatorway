@@ -137,3 +137,24 @@ test("a done GE row can be undone", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
   expect(onToggle).toHaveBeenCalledTimes(1);
 });
+
+test("a swappable GE row offers ranked options to swap in, instead of the plain browse list", async () => {
+  options.mockResolvedValue({ slot_id: "s1", query: "", candidates: [{ code: "SOC 100", title: "Intro Sociology", units: 3, similarity: 0.7, summary: "Society.", warnings: [] }] });
+  swap.mockResolvedValue(result);
+  const onSwapped = vi.fn();
+  const row = slot({ codes: [], title: "GE Area 4: Social and Behavioral Sciences", label: "GE Area 4: Social and Behavioral Sciences", slot_kind: "ge", swappable: true });
+  render(<CourseDrawer slot={row} pathwayId={5} canSwap onClose={noop} onSwapped={onSwapped} ge={{ done: false, onToggle: noop }} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Use SOC 100" }));
+  expect(swap).toHaveBeenCalledWith(5, "s1", "SOC 100");
+  await waitFor(() => expect(onSwapped).toHaveBeenCalledWith(result, "s1"));
+  expect(geCourses).not.toHaveBeenCalled(); // the browse list is only for GE rows that cannot be swapped
+  expect(screen.getByRole("button", { name: "Mark as completed" })).toBeInTheDocument();
+});
+
+test("a GE row that cannot be swapped yet (roadmap still building) still lets the student browse the list", async () => {
+  geCourses.mockResolvedValue({ areas: ["4"], courses: [geCourse("SOC 100", "Intro Sociology")] });
+  const row = slot({ codes: [], title: "GE Area 4: Social and Behavioral Sciences", label: "GE Area 4: Social and Behavioral Sciences", slot_kind: "ge", swappable: true });
+  render(<CourseDrawer slot={row} pathwayId={null} canSwap={false} onClose={noop} onSwapped={noop} ge={{ done: false, onToggle: noop }} />);
+  expect(await screen.findByText("Intro Sociology")).toBeInTheDocument();
+  expect(options).not.toHaveBeenCalled();
+});

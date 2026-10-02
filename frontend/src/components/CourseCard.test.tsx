@@ -160,3 +160,33 @@ test("hovering a card starts loading its details, so the click can open it at on
   expect(await screen.findByText("Lists, trees and graphs.")).toBeInTheDocument();
   expect(courses).toHaveBeenCalledTimes(1); // not fetched again
 });
+
+const geChoice = () => slot({ slot_id: "g", codes: ["SOC 100"], title: "Introduction to Sociology", label: "GE Area 4: Social and Behavioral Sciences", slot_kind: "ge", swappable: true, status: "replaced" });
+
+test("a GE row filled by a student's own choice shows the course, the area it fills, and says it was their choice", () => {
+  render(
+    <CourseCard slot={geChoice()} applied={{ slot_id: "g", new_course_code: "SOC 100", title: "Introduction to Sociology", reason: "Your choice" }} {...base} isPick />,
+  );
+  expect(screen.getByText("Introduction to Sociology")).toBeInTheDocument();
+  expect(screen.getByText("GE Area 4")).toBeInTheDocument();
+  expect(screen.getByText("Your choice")).toBeInTheDocument();
+  expect(screen.queryByText("Picked for you")).not.toBeInTheDocument();
+});
+
+test("an open swappable GE row goes straight to its options when clicked", async () => {
+  const onOpen = vi.fn();
+  render(<CourseCard slot={slot({ codes: [], title: "GE Area 4: Social and Behavioral Sciences", label: "GE Area 4: Social and Behavioral Sciences", slot_kind: "ge", swappable: true })} {...base} onOpen={onOpen} />);
+  expect(screen.getByText(/See options/)).toBeInTheDocument();
+  expect(screen.queryByText(/See courses/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /GE Area 4/ }));
+  expect(onOpen).toHaveBeenCalledTimes(1);
+});
+
+test("an expanded GE choice offers the other options", async () => {
+  const onOpen = vi.fn();
+  courses.mockResolvedValue({ courses: { "SOC 100": { ...detail, code: "SOC 100", title: "Introduction to Sociology" } } });
+  render(<CourseCard slot={geChoice()} {...base} onOpen={onOpen} />);
+  await userEvent.click(screen.getByRole("button", { name: /Introduction to Sociology/ }));
+  await userEvent.click(await screen.findByRole("button", { name: "See other options" }));
+  expect(onOpen).toHaveBeenCalledTimes(1);
+});

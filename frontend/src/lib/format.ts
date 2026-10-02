@@ -5,6 +5,7 @@ export const fmtUnits = (n: number) => (Number.isInteger(n) ? String(n) : n.toFi
 export const slotCodes = (slot: Slot) => slot.codes.join(" + ");
 
 export function kindLabel(slot: Slot): string | null {
+  if (slot.slot_kind === "ge") return "General education";
   if (slot.slot_kind === "major_elective") return "Major elective";
   if (slot.slot_kind === "free_elective") return "Free elective";
   if (/^GE\b|general education/i.test(slot.title)) return "General education";

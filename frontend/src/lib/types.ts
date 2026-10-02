@@ -1,8 +1,9 @@
 export type SlotStatus = "planned" | "passed" | "replaced";
-export type SlotKind = "fixed" | "major_elective" | "free_elective";
+export type SlotKind = "fixed" | "major_elective" | "free_elective" | "ge";
 
 export interface Slot {
   slot_id: string;
+  label?: string; // the roadmap's own wording for the requirement, kept after a course replaces it
   codes: string[];
   title: string;
   units: number;
