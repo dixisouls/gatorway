@@ -2,60 +2,76 @@
 
 **Your degree roadmap, tuned to what you love. Gemini picks the electives; rules check every prerequisite.**
 
-GatorWay turns an SF State transcript and one sentence about what a student is into into a semester-by-semester degree roadmap. The official roadmap appears instantly, then Gemini's elective picks land on top of it, and a rules engine checks every prerequisite and unit so nothing the AI suggests can derail graduation.
+Built for **SF Hacks x GDG AI Hackathon** · for San Francisco State students
 
-Design: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Build log: [`DEVLOG.md`](DEVLOG.md) · Plans: `docs/superpowers/plans/`
+---
 
-## What it does
+## The problem
 
-1. **Sign in** with an SFSU email (Firebase Authentication).
-2. **Upload a transcript**, or skip and just explore. The PDF text is redacted locally, then Gemini reads the courses.
-3. **Pick a degree** and the official roadmap variant.
-4. **Say what you're into**, e.g. "AI and machine learning" (optional).
-5. **Watch the roadmap build**: the standard roadmap shows at once, then a shimmer as Gemini's picks (in gold, each with a reason) replace the baseline.
+Every SF State student plans eight semesters from a one-size-fits-all PDF roadmap that ignores what they've already taken and what they actually care about. Picking electives means digging through ~5,000 courses and checking prerequisites by hand, and a wrong guess can cost a semester.
 
-Then: open any course for its description and prerequisites; swap electives and GE rows from ranked options; choose between "Select One" alternatives; mark GE requirements completed; refresh the picks or try a new interest; reopen past roadmaps.
+## Our solution
 
-## How it works
+Upload a transcript (or just explore), pick a degree, and say what excites you: *"AI and machine learning"*. GatorWay shows the official roadmap instantly, then **Gemini fills your electives with courses that fit you**, each with a reason. A rules engine checks every one against prerequisites, units and level, so **the AI can suggest, but it can never break your plan**.
 
-- **Deterministic baseline first.** Passed courses are marked off the official roadmap by rules, not by an AI.
-- **Gemini proposes, rules decide.** Gemini (Vertex AI) searches for courses through a tool server (FastMCP). A validator then checks each proposed swap: allowed course list, level, duplicates, units, and prerequisites for the whole pathway. Anything that fails is dropped.
-- **Meaning-based course search.** About 5,000 scraped SFSU courses are embedded locally (`BAAI/bge-base-en-v1.5`) in Postgres with pgvector.
-- **Privacy.** Transcript text is redacted on this machine with GLiNER (`nvidia/gliner-PII`) before it reaches Gemini. If redaction can't run, the upload is refused and nothing is sent.
+## 60-second demo
 
-**Built with:** Gemini on Vertex AI, Firebase Authentication · Next.js, React, TypeScript, Tailwind, Motion · FastAPI, FastMCP, SQLAlchemy, Postgres + pgvector, Redis · sentence-transformers, GLiNER, pdfplumber.
+1. **Sign in** with an SFSU email.
+2. **Upload a transcript.** Watch it read your courses by term. Or tap *Skip, I just want to explore*.
+3. **Choose a degree**, then **type an interest.**
+4. The **roadmap appears immediately**, and when Gemini finishes, a shimmer sweeps the screen and **gold picks land** on your electives.
+5. **Tap any course** for its description and prerequisites. Swap an elective from ranked options, change a GE row, or hit **New interest** and watch it re-plan.
 
-**Known limits:** transfer and GE credit on a transcript isn't matched to SFSU courses (you mark GE rows yourself); "Choose one" picks and completed GE rows are remembered in the browser only; redaction is a model, so best-effort.
+## Why it's more than a chatbot
 
-## Run it (everything on one laptop)
+| Idea | What we did |
+|---|---|
+| **AI proposes, rules decide** | Gemini searches the catalog through a tool server (FastMCP) and proposes swaps. A deterministic validator checks each one for allowed courses, level, duplicates, units and prerequisites across the *whole* pathway. Anything invalid is dropped. |
+| **Real data, not guesses** | We scraped the SFSU bulletin: 4,995 courses, 378 programs, 364 official roadmaps. The baseline roadmap is built by rules; the AI never invents a course. |
+| **Meaning-based search** | Courses are embedded locally (bge-base) in Postgres + pgvector, so "AI" finds *Hardware for Machine Learning* and *Deep Learning*. |
+| **Privacy first** | Transcript text is redacted **on-device** with GLiNER (`nvidia/gliner-PII`) before Gemini sees it, and it **fails closed**: if redaction can't run, nothing is sent. |
+| **Not a chat app** | A designed planner: streaming roadmap, golden AI picks with reasons, expandable course cards, choose-one groups, GE tracking, saved history. |
 
-**Quick start:** `scripts/start.sh` starts Postgres, Redis, the MCP server, the extractor, the API and the web app, then open <http://localhost:3000> (logs in `logs/`, Ctrl-C stops the servers it started). The steps below are what it does.
+## Google technology
 
-1. **Services** (Postgres + pgvector, Redis; data kept in named volumes): `docker compose up -d`
-2. **Python env** (once): `python3 -m venv venv && venv/bin/pip install -e "backend[dev]"`. Copy `.env.example` to `.env` and set:
-   - `GOOGLE_GENAI_USE_VERTEXAI=true` and `GOOGLE_CLOUD_PROJECT` (Gemini uses your gcloud login: `gcloud auth application-default login`), or `GEMINI_API_KEY` instead.
-   - `GOOGLE_CLOUD_LOCATION=global` for the newest Gemini models.
-   - The Firebase values (see **Sign-in** below) and `EXTRACTOR_API_KEY` (any long random string, also used by the extractor).
-3. **Load the data** (once, and again after re-scraping): `venv/bin/python -m gatorway.ingest` from the repo root. Embeddings run locally and download on first use (progress bar shown); `--embeddings hashing` is an instant offline stand-in. Use the same `EMBED_PROVIDER` for ingest and the MCP server.
-4. **MCP server:** `cd backend && ../venv/bin/python -m gatorway.mcp_server`
-5. **API:** `cd backend && ../venv/bin/uvicorn gatorway.api.main:create_app --factory --port 8000` (docs at <http://127.0.0.1:8000/docs>). It loads the redaction model in the background at start (about 10 seconds, downloaded once from Hugging Face). `REDACTOR=stub` turns redaction off for tests and demos only.
-6. **Extractor:** `cd extractor && ../venv/bin/uvicorn app:create_app --factory --port 8080`. It's a small stateless service, local by default and deployable to Cloud Run (see `extractor/`).
-7. **Web app:** `cd frontend && npm install && npm run dev` (http://localhost:3000). It calls the API at `NEXT_PUBLIC_API_URL` (default `http://127.0.0.1:8000`); the API allows the origins in `CORS_ORIGINS`.
+- **Gemini (Vertex AI):** understands the student's interest, reads the transcript into structured courses, and proposes the elective picks through tool calls.
+- **Firebase Authentication:** sign-up and sign-in, with ID tokens verified on every API call (SFSU email addresses only).
 
-## Sign-in (Firebase Authentication)
+## Architecture
 
-Accounts live in Firebase: the browser signs students in with the Firebase web SDK, and the API verifies the Firebase ID token on every request, then keeps a small local record (uid and email) so saved courses and pathways have an owner. Setup, once:
+```text
+ Browser (Next.js)  ──Firebase ID token──▶  FastAPI
+      │                                       │  ├─ pdfplumber ▶ GLiNER redaction ▶ extractor (Gemini)  → your courses
+      │                                       │  ├─ baseline roadmap (rules)
+      │                                       │  └─ Gemini ◀── tools ──▶ MCP server ─▶ Postgres + pgvector
+      └────────── streaming reveal ◀──────────┘                              ▲
+                                  validator re-checks every pick ────────────┘
+```
 
-1. Firebase console, your project: **Build → Authentication → Get started → Sign-in method → Email/Password → Enable**.
-2. **Project settings → General → Your apps → Add app → Web**; copy `apiKey`, `authDomain`, `projectId`, `appId` into `.env` as `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`, and set `FIREBASE_PROJECT_ID` to the same project id (the API needs only that; no key file).
-3. Only `@sfsu.edu` (and subdomain) addresses are accepted, enforced in the browser and again in the API. `REQUIRE_EMAIL_VERIFIED=true` also demands a verified email.
+**Stack:** Next.js · React · TypeScript · Tailwind · Motion · FastAPI · FastMCP · SQLAlchemy · Postgres + pgvector · Redis · sentence-transformers · GLiNER · pdfplumber.
 
-## Tests
+**Quality:** 257 backend tests and 148 frontend tests, plus checks run against the real services (Gemini, Firebase, the redaction model).
 
-- Backend: `cd backend && ../venv/bin/pytest -q` (needs the Postgres container). `RUN_GLINER=1` also runs the real redaction model.
-- Extractor: `cd extractor && ../venv/bin/pytest -q`
-- Web app: `cd frontend && npm run typecheck && npm run lint && npm test && npm run build`
+## Honest limits
 
-## Manual end-to-end check (real Gemini and Firebase)
+Transfer and GE credit on a transcript isn't matched to SFSU courses yet (students mark GE rows themselves). "Choose one" picks and completed GE rows are remembered in the browser only. Redaction is a model, so it's best-effort. This is a hackathon build, run locally rather than deployed.
 
-With the stack running: `set -a; . ./.env; set +a; venv/bin/python scripts/smoke_e2e.py`
+---
+
+## Run it
+
+Needs Docker, Python 3.12, Node, and a Google Cloud login (`gcloud auth application-default login`).
+
+```bash
+cp .env.example .env        # set GOOGLE_CLOUD_PROJECT, the Firebase values, EXTRACTOR_API_KEY
+docker compose up -d        # Postgres + pgvector, Redis
+python3 -m venv venv && venv/bin/pip install -e "backend[dev]"
+venv/bin/python -m gatorway.ingest   # load the catalog + local embeddings (first run downloads the model)
+scripts/start.sh            # starts the MCP server, extractor, API and web app; open http://localhost:3000
+```
+
+**Firebase setup (once):** Console → *Authentication → Get started → Email/Password → Enable*, then *Project settings → Your apps → Web* and copy `apiKey`, `authDomain`, `projectId`, `appId` into `.env` as `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`, plus `FIREBASE_PROJECT_ID` (same project id; the API needs no key file).
+
+**Tests:** `cd backend && ../venv/bin/pytest -q` · `cd frontend && npm run typecheck && npm run lint && npm test && npm run build`
+
+More: [`ARCHITECTURE.md`](ARCHITECTURE.md) (design and decisions) · [`DEVLOG.md`](DEVLOG.md) (everything we built, and why)
