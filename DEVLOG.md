@@ -60,3 +60,7 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 - TDD: tests failed (module missing), then 18/18 passed — no network used. Covers: no interest, no specialization, no swappable slots (Gemini never called), valid edit + cache hit, injection attempt on a core slot dropped, retry with validator feedback, give-up after max retries, Gemini/intent failure and Redis-session failure degrade to the baseline with a note (and are not cached), concurrent identical requests run Gemini once.
 - Confirmed the installed `google-genai` still exposes `parameters_json_schema` and `function_calls`.
 - Not yet exercised with the **real Gemini** (no `GEMINI_API_KEY` in this environment) — done in the final smoke test.
+
+## Task 11 — Transcript adapters
+- Added local PDF→text (`pdf.py`; scans/corrupt files rejected, no OCR), transcript normalisation (`extraction.py`: codes like `csc215` → `CSC 215`, only passing grades, retake after an F counts), the redaction port with a pass-through `StubRedactor` (logs a warning once that nothing is redacted), and `HttpExtractor` (API key header, every failure mode → `ExtractorError`).
+- TDD: tests failed (module missing), then 13/13 passed (HTTP tested with a mocked transport).
