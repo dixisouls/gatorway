@@ -22,6 +22,8 @@ class PathwayRequest(BaseModel):
     program_id: int
     roadmap_id: int | None = None
     interest: str | None = Field(default=None, max_length=500)
+    fresh: bool = False
+    avoid: list[str] = Field(default_factory=list, max_length=20)
 
 
 def _service_error(e: ServiceError) -> ApiError:
@@ -58,7 +60,8 @@ async def create_pathway(body: PathwayRequest, user: User = Depends(current_user
     passed = user_passed_codes(db, user.id)
     try:
         result = await state.pathway_service.create(
-            program_id=body.program_id, roadmap_id=body.roadmap_id, passed=passed, interest=body.interest, data_version=data_version(db)
+            program_id=body.program_id, roadmap_id=body.roadmap_id, passed=passed, interest=body.interest, data_version=data_version(db),
+            fresh=body.fresh, avoid=body.avoid
         )
     except ServiceError as e:
         raise _service_error(e)

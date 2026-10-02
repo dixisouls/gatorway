@@ -140,3 +140,11 @@ def test_prompt_tells_the_model_to_search_all_swappable_slots_in_one_step():
     from gatorway.llm.gemini import SYSTEM
 
     assert "same step" in SYSTEM.lower() or "in parallel" in SYSTEM.lower()
+
+
+async def test_feedback_is_framed_as_notes_not_only_rejections():
+    client = FakeClient([text_resp('{"edits": []}')])
+    async with Client(make_mcp()) as mcp:
+        await GeminiLlm(client, "m").propose_edits("S1", mcp, {"get_baseline"}, INTENT, ["Earlier picks to avoid if another good match exists: CSC 667"])
+    prompt = client.calls[0]["contents"][0].parts[0].text
+    assert "Notes for this attempt" in prompt and "CSC 667" in prompt

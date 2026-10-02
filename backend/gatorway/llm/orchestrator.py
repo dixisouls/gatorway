@@ -62,10 +62,11 @@ class PathwayService:
         self._mcp_factory, self._allowed, self._model = mcp_factory, allowed_tools, model_name
         self._edit_timeout = edit_timeout_s
 
-    async def create(self, *, program_id: int, roadmap_id: int | None, passed: list[str], interest: str | None, data_version: str) -> PathwayResult:
+    async def create(self, *, program_id: int, roadmap_id: int | None, passed: list[str], interest: str | None, data_version: str,
+                     fresh: bool = False, avoid: list[str] | None = None) -> PathwayResult:
         try:
             async with self._mcp_factory() as mcp:
-                return await self._create(mcp, program_id, roadmap_id, passed, interest, data_version)
+                return await self._create(mcp, program_id, roadmap_id, passed, interest, data_version, fresh, avoid)
         except ServiceError:
             raise
         except Exception as e:  # tool server unreachable, protocol errors, ...
@@ -83,7 +84,8 @@ class PathwayService:
             log.exception("pathway tools unavailable")
             raise ServiceError("pathway tools are unavailable") from e
 
-    async def _create(self, mcp: Any, program_id: int, roadmap_id: int | None, passed: list[str], interest: str | None, data_version: str) -> PathwayResult:
+    async def _create(self, mcp: Any, program_id: int, roadmap_id: int | None, passed: list[str], interest: str | None, data_version: str,
+                      fresh: bool = False, avoid: list[str] | None = None) -> PathwayResult:
         baseline = await self._build_baseline(mcp, program_id, roadmap_id, passed)
         if not (interest or "").strip():
             return PathwayResult(pathway=baseline)
@@ -99,25 +101,26 @@ class PathwayService:
             return PathwayResult(pathway=baseline, intent=intent, note="No specific interest detected; showing the standard roadmap.")
 
         key = Cache.pathway_key(program_id, baseline.roadmap_id, passed, self._cache.intent_hash(interest, self._model), data_version)
-        hit = self._cache.get_pathway(key)
+        hit = None if fresh else self._cache.get_pathway(key)
         if hit is not None:
             return PathwayResult.model_validate({**hit, "cached": True})
 
-        if not self._cache.acquire_lock(key):
+        if not fresh and not self._cache.acquire_lock(key):
             waited = await self._cache.wait_for_pathway(key)
             if waited is not None:
                 return PathwayResult.model_validate({**waited, "cached": True})
         try:
             try:
-                result = await asyncio.wait_for(self._edit(mcp, baseline, passed, intent), self._edit_timeout)
+                result = await asyncio.wait_for(self._edit(mcp, baseline, passed, intent, avoid or []), self._edit_timeout)
             except asyncio.TimeoutError:
                 log.warning("personalisation exceeded %.0fs", self._edit_timeout)
                 result = PathwayResult(pathway=baseline, intent=intent, note="Personalising took too long; showing the standard roadmap.")
-            if result.note is None:  # never cache a degraded or empty answer
+            if result.note is None and not fresh:  # never cache a degraded answer, or one steered by an avoid list
                 self._cache.set_pathway(key, result.model_dump(mode="json"))
             return result
         finally:
-            self._cache.release_lock(key)
+            if not fresh:  # a refresh never took the lock, so it must not release someone else's
+                self._cache.release_lock(key)
 
     # ------------------------------------------------------------------
     async def _call(self, mcp: Any, tool: str, args: dict) -> dict:
@@ -141,7 +144,7 @@ class PathwayService:
         self._cache.set_intent(interest, self._model, intent.model_dump())
         return intent
 
-    async def _edit(self, mcp: Any, baseline: Pathway, passed: list[str], intent: Intent) -> PathwayResult:
+    async def _edit(self, mcp: Any, baseline: Pathway, passed: list[str], intent: Intent, avoid: list[str]) -> PathwayResult:
         try:
             opened = await self._call(mcp, "open_session", {"pathway": baseline.model_dump(mode="json"), "passed_codes": passed})
             session_id = opened["session_id"]
@@ -152,7 +155,7 @@ class PathwayService:
         catalog, passed_set = self._catalog(), set(passed)
         current, applied, warnings = baseline, [], []
         all_dropped: list[DroppedEdit] = []
-        feedback: list[str] | None = None
+        feedback: list[str] | None = [f"Earlier picks to avoid if another good match exists: {', '.join(avoid)}"] if avoid else None
         note = None
         for _ in range(MAX_RETRIES + 1):
             try:

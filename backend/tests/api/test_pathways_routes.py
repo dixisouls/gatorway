@@ -28,12 +28,13 @@ class ScriptedLlm:
     """Stands in for Gemini: reads the baseline through the real MCP tool, then picks the first free-elective slot."""
 
     def __init__(self, picks=("ART 101",)):
-        self.picks, self.edit_calls = list(picks), 0
+        self.picks, self.edit_calls, self.feedback = list(picks), 0, []
 
     async def parse_intent(self, interest):
         return Intent(specialization=True, topics=["drawing"], keywords=["art"], summary=interest)
 
     async def propose_edits(self, session_id, mcp, allowed, intent, feedback):
+        self.feedback.append(feedback)
         self.edit_calls += 1
         base = (await mcp.call_tool("get_baseline", {"session_id": session_id})).structured_content
         free = next(s for t in base["terms"] for s in t["slots"] if s["kind"] == "free_elective")
@@ -217,3 +218,31 @@ def test_baseline_preview_needs_login_and_a_real_program(world):
     h, _ = headers(client)
     assert client.post("/pathways/baseline", json={"program_id": 99999}, headers=h).status_code == 404
     assert client.post("/pathways/baseline", json={"program_id": minor}, headers=h).status_code == 404  # no roadmap
+
+
+def test_refresh_asks_gemini_again_instead_of_returning_the_cached_answer(world):
+    build, pid, _ = world
+    client, llm = build()
+    h, _ = headers(client)
+    body = {"program_id": pid, "interest": "I like drawing"}
+    client.post("/pathways", json=body, headers=h)
+    again = client.post("/pathways", json=body, headers=h).json()
+    assert again["cached"] is True and llm.edit_calls == 1
+    fresh = client.post("/pathways", json={**body, "fresh": True}, headers=h).json()
+    assert fresh["cached"] is False and llm.edit_calls == 2
+
+
+def test_refresh_tells_the_model_which_earlier_picks_to_avoid(world):
+    build, pid, _ = world
+    client, llm = build()
+    h, _ = headers(client)
+    client.post("/pathways", json={"program_id": pid, "interest": "drawing", "fresh": True, "avoid": ["ART 101", "CSC 601"]}, headers=h)
+    assert llm.feedback[-1] == ["Earlier picks to avoid if another good match exists: ART 101, CSC 601"]
+
+
+def test_avoid_list_is_bounded(world):
+    build, pid, _ = world
+    client, _ = build()
+    h, _ = headers(client)
+    r = client.post("/pathways", json={"program_id": pid, "interest": "x", "avoid": [f"C {i}" for i in range(21)]}, headers=h)
+    assert r.status_code == 422
