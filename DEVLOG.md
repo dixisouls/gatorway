@@ -43,3 +43,8 @@ Running record of what was done on `feat/backend`, newest last. Plan: `docs/supe
 - Added `engine/repository.py` (catalog cached per `data_version`, roadmap choice, per-seat skeleton, `build_baseline_for`, `user_passed_codes`) and `catalog_queries.py` (program/roadmap/requirement reads shared by the API and MCP tools).
 - TDD: tests failed (module missing), then 7/7 passed.
 - Real-data check: Computer Science B.S. baseline = 8 terms, 37 slots, 7 swappable (5 major-elective seats = the 15 elective units, plus 2 free electives); passed courses are marked.
+
+## Task 8 — Redis cache, sessions, locks, rate limiter
+- Added `cache/store.py` (intent/embedding/pathway caches with the spec's TTLs, single-flight lock, pathway sessions, fixed-window rate limiter; Redis outage = no cache / fail-open limiter, sessions raise `CacheUnavailable`).
+- TDD: tests failed (module missing), then 8/8 passed with fakeredis.
+- Also smoke-tested against the **real Redis container** (I started it): session TTL 1800s, lock exclusivity, intent TTL 7 days, rate limiter blocks after the limit, AOF persistence on. Test keys were removed afterwards.
