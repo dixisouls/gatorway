@@ -12,7 +12,7 @@ Every SF State student plans eight semesters from a one-size-fits-all PDF roadma
 
 ## Our solution
 
-Upload a transcript (or just explore), pick a degree, and say what excites you: *"AI and machine learning"*. GatorWay shows the official roadmap instantly, then **Gemini fills your electives with courses that fit you**, each with a reason. A rules engine checks every one against prerequisites, units and level, so **the AI can suggest, but it can never break your plan**.
+Upload a transcript (or just explore), confirm the degree we read from it (or pick one), and say what excites you: *"AI and machine learning"*. GatorWay shows the official roadmap instantly, then **Gemini fills your electives with courses that fit you**, each with a reason. A rules engine checks every one against prerequisites, units and level, so **the AI can suggest, but it can never break your plan**.
 
 ## Why it's more than a chatbot
 
@@ -21,8 +21,15 @@ Upload a transcript (or just explore), pick a degree, and say what excites you: 
 | **AI proposes, rules decide** | Gemini searches the catalog through a tool server (FastMCP) and proposes swaps. A deterministic validator checks each one for allowed courses, level, duplicates, units and prerequisites across the *whole* pathway. Anything invalid is dropped. |
 | **Real data, not guesses** | We scraped the SFSU bulletin: 4,995 courses, 378 programs, 364 official roadmaps. The baseline roadmap is built by rules; the AI never invents a course. |
 | **Meaning-based search** | Courses are embedded locally (bge-base) in Postgres + pgvector, so "AI" finds *Hardware for Machine Learning* and *Deep Learning*. |
-| **Privacy first** | Transcript text is redacted **on-device** with GLiNER (`nvidia/gliner-PII`) before Gemini sees it, and it **fails closed**: if redaction can't run, nothing is sent. |
+| **Privacy first, with open models** | Transcript text is redacted **on-device** with the open GLiNER PII model (`nvidia/gliner-PII`) before Gemini sees it, and it **fails closed**: if redaction can't run, nothing is sent. |
 | **Not a chat app** | A designed planner: streaming roadmap, golden AI picks with reasons, expandable course cards, choose-one groups, GE tracking, saved history. |
+
+## Open models and open source
+
+- **GLiNER PII** (`nvidia/gliner-PII`) is an open-weights model released under the NVIDIA Open Model License, run locally through the Apache-2.0 `gliner` library. No transcript text goes to a hosted redaction service.
+- **bge-base-en-v1.5** (MIT) powers the local course search through the Apache-2.0 `sentence-transformers` library.
+- Both models run on the student's own machine, so the sensitive steps (redaction and course matching) never depend on a closed API.
+- GatorWay's own code is released under the [MIT License](LICENSE).
 
 ## Google technology
 
@@ -50,4 +57,4 @@ Transfer and GE credit on a transcript isn't matched to SFSU courses yet (studen
 
 ---
 
-Developer docs: [`docs/SETUP.md`](docs/SETUP.md) (running it locally) · [`ARCHITECTURE.md`](ARCHITECTURE.md) (design and decisions) · [`DEVLOG.md`](DEVLOG.md) (what we built, and why)
+Licensed under the [MIT License](LICENSE). Developer docs: [`docs/SETUP.md`](docs/SETUP.md) (running it locally) · [`ARCHITECTURE.md`](ARCHITECTURE.md) (design and decisions) · [`DEVLOG.md`](DEVLOG.md) (what we built, and why)
