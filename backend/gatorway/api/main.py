@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from gatorway.db.session import init_db
 
 from .errors import install_error_handlers
-from .routes import auth, health, transcripts
+from .routes import auth, health, pathways, programs, transcripts
 from .state import AppState, build_state
 
 
@@ -29,5 +29,7 @@ def create_app(state: AppState | None = None, init_db_on_startup: bool = True) -
     install_error_handlers(app)
     app.include_router(auth.router)
     app.include_router(transcripts.router)
+    app.include_router(programs.router)
+    app.include_router(pathways.router)
     app.include_router(health.router)
     return app
