@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Starts everything locally: Postgres + Redis (docker), MCP server, extractor, API. Ctrl-C stops the three Python servers.
-# Usage: scripts/start.sh        Logs: logs/{mcp,extractor,api}.log
+# Usage: scripts/start.sh        Logs: streamed here with a coloured tag per service, and kept in logs/{mcp,extractor,api}.log
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,6 +15,18 @@ set -a; . ./.env; set +a
 
 mkdir -p logs
 PIDS=()
+
+# coloured log streaming: [DB] blue, [REDIS] red, [MCP] magenta, [EXTRACTOR] yellow, [API] green (plain tags if not a terminal)
+if [ -t 1 ]; then C_DB=$'\033[34m'; C_REDIS=$'\033[31m'; C_MCP=$'\033[35m'; C_EXT=$'\033[33m'; C_API=$'\033[32m'; C_OFF=$'\033[0m'
+else C_DB=; C_REDIS=; C_MCP=; C_EXT=; C_API=; C_OFF=; fi
+tag() {  # tag COLOR NAME : prefix every line read from stdin
+  local color="$1" name="$2" line
+  while IFS= read -r line; do printf '%s[%s]%s %s\n' "$color" "$name" "$C_OFF" "$line"; done
+}
+: > logs/mcp.log; : > logs/extractor.log; : > logs/api.log
+tail -n 0 -F logs/mcp.log       > >(tag "$C_MCP" MCP) 2>&1 & PIDS+=($!)
+tail -n 0 -F logs/extractor.log > >(tag "$C_EXT" EXTRACTOR) 2>&1 & PIDS+=($!)
+tail -n 0 -F logs/api.log       > >(tag "$C_API" API) 2>&1 & PIDS+=($!)
 cleanup() {
   echo; echo "Stopping servers..."
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null || true; done
@@ -33,6 +45,8 @@ wait_http() {  # name url seconds
 
 echo "Starting Postgres + Redis..."
 docker compose up -d --wait
+docker compose logs -f --no-log-prefix --tail 0 db    > >(tag "$C_DB" DB) 2>&1 & PIDS+=($!)
+docker compose logs -f --no-log-prefix --tail 0 redis > >(tag "$C_REDIS" REDIS) 2>&1 & PIDS+=($!)
 
 echo "Starting MCP server (:8001)..."
 (cd backend && exec "$PY" -m gatorway.mcp_server) >logs/mcp.log 2>&1 &
@@ -57,6 +71,6 @@ wait_http API http://127.0.0.1:8000/health 30
 
 echo
 echo "All up:  API http://127.0.0.1:8000/docs   MCP :8001   extractor :8080"
-echo "Logs:    tail -f logs/api.log logs/mcp.log logs/extractor.log"
+echo "Logs are streaming below (also saved in logs/)."
 echo "Ctrl-C to stop."
 wait
