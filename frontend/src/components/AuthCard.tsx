@@ -29,11 +29,11 @@ export function AuthCard() {
 
   const label = mode === "login" ? "Sign in" : "Create account";
   const field =
-    "w-full rounded-2xl border border-line bg-white/80 px-4 py-3 text-[15px] outline-none transition focus:border-purple/40 focus:ring-4 focus:ring-purple-soft";
+    "w-full rounded-2xl border border-line bg-white/80 px-5 py-3.5 text-base outline-none transition focus:border-purple/40 focus:ring-4 focus:ring-purple-soft";
 
   return (
-    <form onSubmit={submit} className="w-full max-w-sm rounded-[2rem] border border-line bg-white/70 p-7 shadow-soft backdrop-blur">
-      <h2 className="font-serif text-2xl">{mode === "login" ? "Welcome back" : "Join GatorWay"}</h2>
+    <form onSubmit={submit} className="w-full max-w-xl rounded-[2rem] border border-line bg-white/70 p-8 shadow-soft backdrop-blur sm:p-10">
+      <h2 className="font-serif text-3xl">{mode === "login" ? "Welcome back" : "Join GatorWay"}</h2>
       <p className="mt-1 text-sm text-muted">Use your SFSU email address.</p>
       <label className="mt-6 block text-sm text-muted">
         <span className="mb-1.5 block">SFSU email</span>
@@ -57,7 +57,7 @@ export function AuthCard() {
           {error}
         </p>
       )}
-      <Button type="submit" className="mt-6 w-full" disabled={pending}>
+      <Button type="submit" className="mt-8 w-full py-3.5 text-base" disabled={pending}>
         {pending ? (mode === "login" ? "Signing in…" : "Creating account…") : label}
       </Button>
       <button
