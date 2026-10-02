@@ -1029,3 +1029,14 @@ p {
 @media (prefers-reduced-motion: reduce) {
   .screen-shimmer::before { animation-duration: 0.01s; }
 }
+
+/* The connector between semesters spans the whole board row; beside a left panel on wide screens it would just sit in the way. */
+.term-arrow {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  margin: -6px 0;
+}
+@media (min-width: 761px) {
+  .term-arrow--beside { display: none; }
+}

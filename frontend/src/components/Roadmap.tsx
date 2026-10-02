@@ -1,5 +1,7 @@
 "use client";
 
+import { motion } from "motion/react";
+import { Fragment, useId } from "react";
 import { fmtUnits, termUnits } from "@/lib/format";
 import { creditHint, isGeSlot } from "@/lib/ge";
 import { groupChoices } from "@/lib/groups";
@@ -21,6 +23,31 @@ interface RoadmapProps {
   creditAreas?: string[]; // GE areas the transcript already has credit for
 }
 
+/** The soft S-curve between semesters: draws itself in when scrolled into view, with a glow, a gold dot and an arrowhead.
+ *  Wide so it can sweep from one column to the other; after a left panel it is hidden on wide screens (the next panel is beside it). */
+function TermArrow({ index }: { index: number }) {
+  const id = useId();
+  const flip = index % 2 === 1; // alternates sides: right panel -> next row's left panel runs right to left
+  const view = { once: true, margin: "-40px" } as const;
+  const d = "M80 6 C 80 62, 560 30, 560 84";
+  return (
+    <div data-testid="term-arrow" aria-hidden="true" className={`term-arrow ${index % 2 === 0 ? "term-arrow--beside" : ""}`}>
+      <svg viewBox="0 0 640 96" fill="none" className="h-20 w-full max-w-3xl overflow-visible" style={flip ? { transform: "scaleX(-1)" } : undefined}>
+        <defs>
+          <linearGradient id={`${id}-g`} x1="0" y1="0" x2="640" y2="0" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#b29d6c" />
+            <stop offset="1" stopColor="#4a35a8" />
+          </linearGradient>
+        </defs>
+        <motion.path d={d} stroke={`url(#${id}-g)`} strokeOpacity="0.28" strokeWidth="7" strokeLinecap="round" initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }} viewport={view} transition={{ duration: 0.9, ease: "easeOut" }} />
+        <motion.path d={d} stroke={`url(#${id}-g)`} strokeWidth="1.6" strokeLinecap="round" initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }} viewport={view} transition={{ duration: 0.9, ease: "easeOut" }} />
+        <motion.circle cx="80" cy="6" r="3.5" fill="#b29d6c" initial={{ scale: 0 }} whileInView={{ scale: 1 }} viewport={view} transition={{ type: "spring", stiffness: 300, damping: 18 }} />
+        <motion.path d="M553 76 L560 88 L567 76" stroke="#4a35a8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={view} transition={{ delay: 0.75, duration: 0.3 }} />
+      </svg>
+    </div>
+  );
+}
+
 export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generating, onOpen, choices = {}, onChoose = () => {}, done, onToggleDone, creditAreas = [] }: RoadmapProps) {
   const terms = [...pathway.terms].sort((a, b) => a.position - b.position).filter((t) => t.slots.length > 0);
   const delays = revealDelays(terms);
@@ -28,7 +55,8 @@ export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generatin
   return (
     <div className="semester-board">
       {terms.map((term, index) => (
-        <section key={term.position} aria-label={term.label} className="term-section">
+        <Fragment key={term.position}>
+        <section aria-label={term.label} className="term-section">
           <div className="term-heading">
             <div className="flex items-center gap-3"><span className="semester-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><h3 className="text-ink">{term.label}</h3></div>
             <span className="text-xs text-muted">{fmtUnits(termUnits(term))} units</span>
@@ -80,6 +108,8 @@ export function Roadmap({ pathway, baselineSlots, applied, isRevealed, generatin
             })}
           </div>
         </section>
+        {index < terms.length - 1 && <TermArrow index={index} />}
+        </Fragment>
       ))}
     </div>
   );
